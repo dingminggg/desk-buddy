@@ -61,6 +61,7 @@ class PetWidget(QWidget):
         self._drag_offset = None
         self._press_global = None
         self._moved = False
+        self._roam_enabled = False
 
         # Speech bubble (separate frameless window so it can overflow the pet).
         self._bubble = QLabel(None, Qt.ToolTip)
@@ -141,7 +142,13 @@ class PetWidget(QWidget):
         self.update()
 
     def set_roaming(self, enabled: bool) -> None:
-        if enabled:
+        self._roam_enabled = enabled
+        self._apply_roaming()
+
+    def _apply_roaming(self) -> None:
+        # Roam only when enabled AND the input bar is closed — wandering while
+        # the user types would drag the input away and ruin the experience.
+        if self._roam_enabled and self._input_bar.isHidden():
             self._roam_timer.start(ROAM_INTERVAL_MS)
         else:
             self._roam_timer.stop()
@@ -180,6 +187,8 @@ class PetWidget(QWidget):
                 self._moved = True
             self.move(current - self._drag_offset)
             self._position_bubble()
+            if not self._input_bar.isHidden():
+                self._position_input()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
         was_click = self._drag_offset is not None and not self._moved
@@ -190,11 +199,11 @@ class PetWidget(QWidget):
     # --- public API (cont.) ---------------------------------------------
     def prompt_input(self) -> None:
         """Show the click-to-type input bar just below the pet."""
-        pos = self.pos()
-        self._input_bar.move(pos.x(), pos.y() + PET_SIZE)
+        self._position_input()
         self._input.clear()
         self._input_bar.show()
         self._input.setFocus()
+        self._apply_roaming()  # pause roaming while the user types
 
     def request_settings(self) -> None:
         """Ask the controller to open the settings dialog."""
@@ -209,12 +218,18 @@ class PetWidget(QWidget):
 
     def _hide_input(self) -> None:
         self._input_bar.hide()
+        self._apply_roaming()  # resume roaming if it was enabled
 
     def _on_input_return(self) -> None:
         text = self._input.text().strip()
         self._input_bar.hide()
+        self._apply_roaming()  # resume roaming if it was enabled
         if text:
             self.user_said.emit(text)
+
+    def _position_input(self) -> None:
+        pos = self.pos()
+        self._input_bar.move(pos.x(), pos.y() + PET_SIZE)
 
     def _position_bubble(self) -> None:
         pos = self.pos()

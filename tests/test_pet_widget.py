@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QMouseEvent  # noqa: E402
 
-from desk_buddy.pet_widget import PetWidget  # noqa: E402
+from desk_buddy.pet_widget import PetWidget, PET_SIZE  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -107,6 +107,25 @@ def test_close_button_hides_input_bar(qapp):
     assert pet._input_bar.isHidden() is False
     pet._close_btn.click()  # ✕ 关闭按钮只收起输入条，不退出程序
     assert pet._input_bar.isHidden() is True
+
+
+def test_input_bar_follows_pet_on_drag(qapp):
+    pet = PetWidget()
+    pet.move(100, 100)
+    pet.prompt_input()
+    _drag(pet, 100, 100, 300, 300)  # drag pet to a new spot
+    assert pet.x() == 300 and pet.y() == 300
+    assert pet._input_bar.pos().x() == 300
+    assert pet._input_bar.pos().y() == 300 + PET_SIZE
+
+
+def test_roaming_paused_while_input_open(qapp):
+    pet = PetWidget()
+    pet.prompt_input()        # input open
+    pet.set_roaming(True)     # user enables roaming...
+    assert pet.is_roaming() is False  # ...but it's paused while typing
+    pet._close_btn.click()    # close the input bar
+    assert pet.is_roaming() is True   # roaming resumes
 
 
 def test_request_settings_emits_signal(qapp):
