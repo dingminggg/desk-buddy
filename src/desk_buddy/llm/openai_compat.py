@@ -28,7 +28,11 @@ class OpenAICompatibleProvider(LLMProvider):
         except requests.RequestException as exc:
             raise LLMError(f"request failed: {exc}") from exc
         if resp.status_code != 200:
-            raise LLMError(f"HTTP {resp.status_code}: {resp.json()}")
+            try:
+                detail = resp.json()
+            except ValueError:
+                detail = getattr(resp, "text", "<non-JSON body>")
+            raise LLMError(f"HTTP {resp.status_code}: {detail}")
         try:
             return resp.json()["choices"][0]["message"]["content"]
         except (KeyError, IndexError, ValueError) as exc:
