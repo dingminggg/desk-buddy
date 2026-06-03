@@ -70,10 +70,43 @@ def test_left_click_without_drag_emits_clicked(qapp):
     assert received == [True]
 
 
+def _drag(pet, gx, gy, to_x, to_y):
+    """合成一次左键拖动（按下 -> 移动超过阈值 -> 释放）。"""
+    press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(0, 0),
+                        QPointF(gx, gy), Qt.LeftButton, Qt.LeftButton,
+                        Qt.NoModifier)
+    move = QMouseEvent(QEvent.Type.MouseMove, QPointF(0, 0),
+                       QPointF(to_x, to_y), Qt.NoButton, Qt.LeftButton,
+                       Qt.NoModifier)
+    release = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                          QPointF(to_x, to_y), Qt.LeftButton, Qt.NoButton,
+                          Qt.NoModifier)
+    pet.mousePressEvent(press)
+    pet.mouseMoveEvent(move)
+    pet.mouseReleaseEvent(release)
+
+
+def test_drag_does_not_emit_clicked(qapp):
+    pet = PetWidget()
+    pet.move(100, 100)
+    received = []
+    pet.clicked.connect(lambda: received.append(True))
+    _drag(pet, 100, 100, 200, 200)  # 移动远超阈值 -> 拖动，不应发 clicked
+    assert received == []
+
+
 def test_prompt_input_shows_input_bar(qapp):
     pet = PetWidget()
     pet.prompt_input()
-    assert pet._input.isHidden() is False
+    assert pet._input_bar.isHidden() is False
+
+
+def test_close_button_hides_input_bar(qapp):
+    pet = PetWidget()
+    pet.prompt_input()
+    assert pet._input_bar.isHidden() is False
+    pet._close_btn.click()  # ✕ 关闭按钮只收起输入条，不退出程序
+    assert pet._input_bar.isHidden() is True
 
 
 def test_request_settings_emits_signal(qapp):

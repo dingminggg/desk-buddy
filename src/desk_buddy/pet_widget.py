@@ -2,12 +2,20 @@ import random
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QLabel, QLineEdit, QMenu, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QWidget,
+)
 
 PET_SIZE = 96
 ROAM_INTERVAL_MS = 4000
 ROAM_STEP = 8
 BUBBLE_TIMEOUT_MS = 6000
+DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
 
 _STATE_COLORS = {
     "idle": QColor(120, 180, 255),
@@ -27,11 +35,14 @@ class PetWidget(QWidget):
       - signal clicked(): emitted on a left-click that isn't a drag
       - signal settings_requested(): emitted when the user picks 设置 in the
         right-click menu
+      - signal quit_requested(): emitted when the user picks 退出 in the
+        right-click menu
     """
 
     user_said = Signal(str)
     clicked = Signal()
     settings_requested = Signal()
+    quit_requested = Signal()
 
     def __init__(self):
         super().__init__()
@@ -45,6 +56,8 @@ class PetWidget(QWidget):
 
         self._state = "idle"
         self._drag_offset = None
+        self._press_global = None
+        self._moved = False
 
         # Speech bubble (separate frameless window so it can overflow the pet).
         self._bubble = QLabel(None, Qt.ToolTip)
@@ -57,12 +70,30 @@ class PetWidget(QWidget):
         self._bubble_timer.setSingleShot(True)
         self._bubble_timer.timeout.connect(self._bubble.hide)
 
-        # Click-to-type input bar (frameless line edit shown below the pet).
-        self._input = QLineEdit(None, Qt.ToolTip)
+        # Click-to-type input bar: a small frameless popup holding just the
+        # text field and a ✕ close button.
+        self._input_bar = QWidget(
+            None,
+            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint,
+        )
+        self._input_bar.setStyleSheet(
+            "QWidget { background:#ffffff; border:1px solid #d9c97a;"
+            " border-radius:8px; }"
+            " QPushButton { border:none; color:#888; font-weight:bold; }"
+            " QPushButton:hover { color:#e05a5a; }")
+        bar_layout = QHBoxLayout(self._input_bar)
+        bar_layout.setContentsMargins(8, 6, 6, 6)
+        bar_layout.setSpacing(4)
+        self._input = QLineEdit()
         self._input.setPlaceholderText("跟我说点啥…")
-        self._input.setFixedWidth(220)
-        self._input.hide()
+        self._input.setFixedWidth(200)
         self._input.returnPressed.connect(self._on_input_return)
+        self._close_btn = QPushButton("✕")
+        self._close_btn.setFixedWidth(22)
+        self._close_btn.clicked.connect(self._hide_input)
+        bar_layout.addWidget(self._input)
+        bar_layout.addWidget(self._close_btn)
+        self._input_bar.hide()
 
         # Roaming.
         self._roam_timer = QTimer(self)
@@ -110,29 +141,33 @@ class PetWidget(QWidget):
     # --- mouse: drag + click-to-open-input ------------------------------
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.pos()
+            self._press_global = event.globalPosition().toPoint()
+            self._drag_offset = self._press_global - self.pos()
+            self._moved = False
         elif event.button() == Qt.RightButton:
             self._show_menu(event.globalPosition().toPoint())
 
     def mouseMoveEvent(self, event):  # noqa: N802
         if self._drag_offset is not None:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            current = event.globalPosition().toPoint()
+            if (current - self._press_global).manhattanLength() > DRAG_THRESHOLD:
+                self._moved = True
+            self.move(current - self._drag_offset)
             self._position_bubble()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
-        moved = self._drag_offset is not None and \
-            (event.globalPosition().toPoint() - self.pos()) != self._drag_offset
+        was_click = self._drag_offset is not None and not self._moved
         self._drag_offset = None
-        if not moved:  # a click, not a drag -> let the controller decide
+        if was_click:  # a click, not a drag -> let the controller decide
             self.clicked.emit()
 
     # --- public API (cont.) ---------------------------------------------
     def prompt_input(self) -> None:
         """Show the click-to-type input bar just below the pet."""
         pos = self.pos()
-        self._input.move(pos.x(), pos.y() + PET_SIZE)
+        self._input_bar.move(pos.x(), pos.y() + PET_SIZE)
         self._input.clear()
-        self._input.show()
+        self._input_bar.show()
         self._input.setFocus()
 
     def request_settings(self) -> None:
@@ -142,13 +177,16 @@ class PetWidget(QWidget):
     # --- internals ------------------------------------------------------
     def _show_menu(self, global_pos) -> None:
         menu = QMenu(self)
-        action = menu.addAction("设置")
-        action.triggered.connect(self.request_settings)
+        menu.addAction("设置").triggered.connect(self.request_settings)
+        menu.addAction("退出").triggered.connect(self.quit_requested.emit)
         menu.exec(global_pos)
+
+    def _hide_input(self) -> None:
+        self._input_bar.hide()
 
     def _on_input_return(self) -> None:
         text = self._input.text().strip()
-        self._input.hide()
+        self._input_bar.hide()
         if text:
             self.user_said.emit(text)
 

@@ -52,6 +52,9 @@ def main() -> int:
     from .pet_widget import PetWidget
 
     app = QApplication(sys.argv)
+    # The pet is the anchor window; closing the input bar or a dialog must not
+    # quit the app. Only the right-click 退出 menu quits explicitly.
+    app.setQuitOnLastWindowClosed(False)
 
     config_path = default_config_path()
     config = load_config(config_path)
@@ -84,6 +87,7 @@ def main() -> int:
     pet.user_said.connect(controller.handle_user_text)
     pet.clicked.connect(on_pet_clicked)
     pet.settings_requested.connect(open_settings)
+    pet.quit_requested.connect(app.quit)
     pet.set_roaming(config.roam_enabled)
 
     scheduler = Scheduler(store, controller.handle_reminder_due)
