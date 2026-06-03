@@ -136,20 +136,23 @@ def test_request_settings_emits_signal(qapp):
     assert received == [True]
 
 
-def test_set_state_resets_frame_and_advance_cycles(qapp):
+def test_pet_size_is_128(qapp):
+    assert PET_SIZE == 128
+    pet = PetWidget()
+    assert pet.width() == 128
+    assert pet.height() == 128
+
+
+def test_movie_loaded(qapp):
+    pet = PetWidget()
+    assert pet._movie.isValid() is True
+    assert pet._movie.frameCount() > 0
+    assert pet._movie.currentPixmap().isNull() is False
+
+
+def test_paint_and_set_state_do_not_crash(qapp):
     pet = PetWidget()
     pet.set_state("walking")
-    assert pet._frame_index == 0
-    pet._advance_frame()
-    assert pet._frame_index == 1
-    pet._advance_frame()
-    assert pet._frame_index == 0
-    pet.set_state("idle")  # switching state resets the frame
-    assert pet._frame_index == 0
-
-
-def test_unknown_state_falls_back_to_idle_without_crash(qapp):
-    pet = PetWidget()
-    pet.set_state("dancing")  # not a real state
+    pet.set_state("idle")
     pet.show()
-    pet.repaint()  # must not raise even with an unknown state
+    pet.repaint()  # paints current GIF frame; must not raise
