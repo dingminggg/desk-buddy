@@ -180,3 +180,68 @@ def test_nag_respects_sound_disabled(store):
     app.handle_reminder_due(_mk("喝水"))
     app.on_alert_nag()
     assert app.notifier.sounds == 0
+
+
+class FakeRunner:
+    """Captures the submitted job so the test can complete it manually."""
+
+    def __init__(self):
+        self.calls = 0
+        self.fn = None
+        self.on_done = None
+        self.on_error = None
+
+    def run(self, fn, on_done, on_error):
+        self.calls += 1
+        self.fn = fn
+        self.on_done = on_done
+        self.on_error = on_error
+
+
+def test_thinking_bubble_then_reply(store):
+    runner = FakeRunner()
+    app = App(Config(sound_enabled=True), store,
+              StubBrain(Intent(action=IntentAction.QUERY)),
+              FakePet(), FakeNotifier(), runner=runner)
+    app.handle_user_text("我有啥提醒")
+    assert app.pet.said == ["让我想想…"]   # nothing dispatched yet
+    assert runner.calls == 1
+    runner.on_done(Intent(action=IntentAction.QUERY))  # API "returns"
+    assert app.pet.said[-1] != "让我想想…"  # replied (query result)
+    assert app._busy is False
+
+
+def test_busy_ignores_second_message(store):
+    runner = FakeRunner()
+    app = App(Config(), store,
+              StubBrain(Intent(action=IntentAction.QUERY)),
+              FakePet(), FakeNotifier(), runner=runner)
+    app.handle_user_text("第一句")
+    app.handle_user_text("第二句")          # while first is in-flight
+    assert runner.calls == 1                # second was ignored
+    assert app.pet.said[-1] == "等我把上一句想完～"
+    runner.on_done(Intent(action=IntentAction.QUERY))
+    assert app._busy is False
+    app.handle_user_text("第三句")          # free again
+    assert runner.calls == 2
+
+
+def test_async_llm_error_saves_draft(store):
+    runner = FakeRunner()
+    app = App(Config(), store, StubBrain(), FakePet(), FakeNotifier(),
+              runner=runner)
+    app.handle_user_text("明天提醒我退订")
+    runner.on_error(LLMError("offline"))
+    assert store.list_drafts() == ["明天提醒我退订"]
+    assert app._busy is False
+
+
+def test_async_generic_error_no_draft(store):
+    runner = FakeRunner()
+    app = App(Config(), store, StubBrain(), FakePet(), FakeNotifier(),
+              runner=runner)
+    app.handle_user_text("xxx")
+    runner.on_error(ValueError("boom"))
+    assert store.list_drafts() == []
+    assert app._busy is False
+    assert app.pet.said[-1] == "出了点小问题，稍后再说～"

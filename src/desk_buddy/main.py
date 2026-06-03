@@ -5,6 +5,7 @@ from .app import App
 from .brain import Brain
 from .config import Config, default_config_path, load_config, save_config
 from .llm import build_provider
+from .qt_runner import QtRunner
 from .scheduler import TICK_INTERVAL_MS, Scheduler
 from .store import ReminderStore
 
@@ -68,7 +69,7 @@ def main() -> int:
     pet = PetWidget()
     from . import notify
 
-    controller = App(config, store, brain, pet, notify)
+    controller = App(config, store, brain, pet, notify, runner=QtRunner())
 
     def open_settings() -> None:
         if not _run_setup_dialog(config):

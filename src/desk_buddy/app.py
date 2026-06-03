@@ -10,6 +10,19 @@ def _fmt(dt: datetime) -> str:
     return dt.strftime("%m-%d %H:%M")
 
 
+class SyncRunner:
+    """Default runner: execute fn inline and call back directly. Lets App work
+    and be tested without any threading."""
+
+    def run(self, fn, on_done, on_error):
+        try:
+            result = fn()
+        except Exception as exc:  # noqa: BLE001
+            on_error(exc)
+        else:
+            on_done(result)
+
+
 class App:
     """Wires PetWidget input -> Brain -> ReminderStore -> bubble feedback,
     and Scheduler due events -> a persistent reminder alert (queued, one at a
@@ -19,23 +32,32 @@ class App:
     `notifier` needs `toast(title, message)` and `play_sound()`.
     """
 
-    def __init__(self, config: Config, store, brain, pet, notifier):
+    def __init__(self, config: Config, store, brain, pet, notifier, runner=None):
         self.config = config
         self.store = store
         self.brain = brain
         self.pet = pet
         self.notifier = notifier
+        self.runner = runner or SyncRunner()
+        self._busy = False
         self._due_queue: list[Reminder] = []
         self._alert_active = False
 
     def handle_user_text(self, text: str) -> None:
-        try:
-            intent = self.brain.parse(text, datetime.now())
-        except LLMError:
-            self.store.save_draft(text)
-            self.pet.say("我现在连不上脑子，先把你的话记下了，稍等再说～")
+        if self._busy:
+            self.pet.say("等我把上一句想完～")
             return
+        self._busy = True
+        self.pet.say("让我想想…")
+        now = datetime.now()
+        self.runner.run(
+            lambda: self.brain.parse(text, now),
+            lambda intent: self._on_parsed(intent, text),
+            lambda exc: self._on_parse_error(exc, text),
+        )
 
+    def _on_parsed(self, intent, text: str) -> None:
+        self._busy = False
         if intent.action == IntentAction.ADD:
             self._do_add(intent, text)
         elif intent.action == IntentAction.QUERY:
@@ -46,6 +68,14 @@ class App:
             self._do_cancel(intent)
         else:  # CLARIFY
             self.pet.say(intent.text or "能再说清楚一点吗？")
+
+    def _on_parse_error(self, exc: Exception, text: str) -> None:
+        self._busy = False
+        if isinstance(exc, LLMError):
+            self.store.save_draft(text)
+            self.pet.say("我现在连不上脑子，先把你的话记下了，稍等再说～")
+        else:
+            self.pet.say("出了点小问题，稍后再说～")
 
     def _do_add(self, intent, original_text: str) -> None:
         if intent.time is None:
