@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# 配置与密钥（绝不入库）
+config.local.*
+*.key
+.env
+
+# 本地数据
+*.db
+*.sqlite
+*.sqlite3
+
+# 头脑风暴草图（可视化伴侣产物）
+.superpowers/
+
+# IDE / OS
+.idea/
+.vscode/
+*.log
+Thumbs.db
+.DS_Store
