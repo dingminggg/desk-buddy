@@ -1,9 +1,9 @@
 import random
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter
+from pathlib import Path
 
-from .sprite import FRAMES, GRID, build_pixmap
+from PySide6.QtCore import Qt, QSize, QTimer, Signal
+from PySide6.QtGui import QColor, QMovie, QPainter
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -16,14 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-PET_SIZE = 96
+PET_SIZE = 128
 ROAM_INTERVAL_MS = 4000
 ROAM_STEP = 8
 BUBBLE_TIMEOUT_MS = 6000
 DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
 
-SPRITE_SCALE = PET_SIZE // GRID  # 96 // 16 = 6
-ANIM_INTERVAL_MS = 400
+GIF_PATH = Path(__file__).parent / "assets" / "frog.gif"
 
 
 class PetWidget(QWidget):
@@ -63,12 +62,13 @@ class PetWidget(QWidget):
         self._moved = False
         self._roam_enabled = False
 
-        # Pre-render every sprite frame to a QPixmap once.
-        self._frames = {
-            state: [build_pixmap(f, SPRITE_SCALE) for f in frame_list]
-            for state, frame_list in FRAMES.items()
-        }
-        self._frame_index = 0
+        # Animated GIF body, scaled to the pet size.
+        self._movie = QMovie(str(GIF_PATH))
+        self._movie.setScaledSize(QSize(PET_SIZE, PET_SIZE))
+        self._movie.frameChanged.connect(self.update)
+        if self._movie.isValid():
+            self._movie.jumpToFrame(0)  # ensure currentPixmap is valid at once
+            self._movie.start()
 
         # Speech bubble (separate frameless window so it can overflow the pet).
         self._bubble = QLabel(None, Qt.ToolTip)
@@ -133,10 +133,6 @@ class PetWidget(QWidget):
         self._roam_timer = QTimer(self)
         self._roam_timer.timeout.connect(self._roam_tick)
 
-        # Sprite animation: toggle the 2 frames of the current state.
-        self._anim_timer = QTimer(self)
-        self._anim_timer.timeout.connect(self._advance_frame)
-        self._anim_timer.start(ANIM_INTERVAL_MS)
 
     # --- public API -----------------------------------------------------
     def say(self, text: str) -> None:
@@ -150,9 +146,8 @@ class PetWidget(QWidget):
         return self._bubble.text()
 
     def set_state(self, state: str) -> None:
+        # One animation for all states; keep the attribute for callers/future use.
         self._state = state
-        self._frame_index = 0
-        self.update()
 
     def set_roaming(self, enabled: bool) -> None:
         self._roam_enabled = enabled
@@ -177,10 +172,10 @@ class PetWidget(QWidget):
 
     # --- painting -------------------------------------------------------
     def paintEvent(self, event):  # noqa: N802 (Qt naming)
+        if not self._movie.isValid():
+            return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
-        frames = self._frames.get(self._state) or self._frames["idle"]
-        painter.drawPixmap(0, 0, frames[self._frame_index % len(frames)])
+        painter.drawPixmap(0, 0, self._movie.currentPixmap())
 
     # --- mouse: drag + click-to-open-input ------------------------------
     def mousePressEvent(self, event):  # noqa: N802
@@ -245,10 +240,6 @@ class PetWidget(QWidget):
     def _position_bubble(self) -> None:
         pos = self.pos()
         self._bubble.move(pos.x(), max(0, pos.y() - self._bubble.height()))
-
-    def _advance_frame(self) -> None:
-        self._frame_index = (self._frame_index + 1) % 2
-        self.update()
 
     def _roam_tick(self) -> None:
         screen = self.screen().availableGeometry() if self.screen() else None

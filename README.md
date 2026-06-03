@@ -1,6 +1,6 @@
 # desk-buddy
 
-A Windows desktop floating pet that turns plain-language requests into reminders.
+A Windows desktop floating pet (an animated frog) that turns plain-language requests into reminders.
 
 ## Develop
 

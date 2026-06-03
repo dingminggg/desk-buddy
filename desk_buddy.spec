@@ -6,7 +6,7 @@ a = Analysis(
     ["src/desk_buddy/main.py"],
     pathex=["src"],
     binaries=[],
-    datas=[],
+    datas=[("src/desk_buddy/assets/frog.gif", "desk_buddy/assets")],
     hiddenimports=["plyer.platforms.win.notification"],
     hookspath=[],
     runtime_hooks=[],
