@@ -55,6 +55,9 @@ def main() -> int:
 
     config_path = default_config_path()
     config = load_config(config_path)
+    # Pet-first startup opens the DB before any config save, so ensure the
+    # data dir exists (on a fresh machine it would not yet).
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
     db_path = str(config_path.parent / "reminders.db")
     store = ReminderStore(db_path)
