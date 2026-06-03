@@ -6,6 +6,8 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
 
 from desk_buddy.pet_widget import PetWidget  # noqa: E402
 
@@ -45,3 +47,38 @@ def test_roam_tick_moves_without_error(qapp):
     pet = PetWidget()
     pet.set_roaming(True)
     pet._roam_tick()  # one autonomous step; must not raise
+
+
+def _left_click_at(pet, gx, gy):
+    """合成一次左键按下+释放（同一坐标 = 点击，非拖拽）。"""
+    press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(0, 0),
+                        QPointF(gx, gy), Qt.LeftButton, Qt.LeftButton,
+                        Qt.NoModifier)
+    release = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                          QPointF(gx, gy), Qt.LeftButton, Qt.NoButton,
+                          Qt.NoModifier)
+    pet.mousePressEvent(press)
+    pet.mouseReleaseEvent(release)
+
+
+def test_left_click_without_drag_emits_clicked(qapp):
+    pet = PetWidget()
+    pet.move(100, 100)
+    received = []
+    pet.clicked.connect(lambda: received.append(True))
+    _left_click_at(pet, 100, 100)  # 按下与释放同点 -> 视为点击
+    assert received == [True]
+
+
+def test_prompt_input_shows_input_bar(qapp):
+    pet = PetWidget()
+    pet.prompt_input()
+    assert pet._input.isHidden() is False
+
+
+def test_request_settings_emits_signal(qapp):
+    pet = PetWidget()
+    received = []
+    pet.settings_requested.connect(lambda: received.append(True))
+    pet.request_settings()
+    assert received == [True]
