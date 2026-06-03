@@ -2,6 +2,8 @@ import random
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter
+
+from .sprite import FRAMES, GRID, build_pixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -20,10 +22,8 @@ ROAM_STEP = 8
 BUBBLE_TIMEOUT_MS = 6000
 DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
 
-_STATE_COLORS = {
-    "idle": QColor(120, 180, 255),
-    "walking": QColor(120, 220, 160),
-}
+SPRITE_SCALE = PET_SIZE // GRID  # 96 // 16 = 6
+ANIM_INTERVAL_MS = 400
 
 
 class PetWidget(QWidget):
@@ -62,6 +62,13 @@ class PetWidget(QWidget):
         self._press_global = None
         self._moved = False
         self._roam_enabled = False
+
+        # Pre-render every sprite frame to a QPixmap once.
+        self._frames = {
+            state: [build_pixmap(f, SPRITE_SCALE) for f in frame_list]
+            for state, frame_list in FRAMES.items()
+        }
+        self._frame_index = 0
 
         # Speech bubble (separate frameless window so it can overflow the pet).
         self._bubble = QLabel(None, Qt.ToolTip)
@@ -126,6 +133,11 @@ class PetWidget(QWidget):
         self._roam_timer = QTimer(self)
         self._roam_timer.timeout.connect(self._roam_tick)
 
+        # Sprite animation: toggle the 2 frames of the current state.
+        self._anim_timer = QTimer(self)
+        self._anim_timer.timeout.connect(self._advance_frame)
+        self._anim_timer.start(ANIM_INTERVAL_MS)
+
     # --- public API -----------------------------------------------------
     def say(self, text: str) -> None:
         self._bubble.setText(text)
@@ -139,6 +151,7 @@ class PetWidget(QWidget):
 
     def set_state(self, state: str) -> None:
         self._state = state
+        self._frame_index = 0
         self.update()
 
     def set_roaming(self, enabled: bool) -> None:
@@ -165,11 +178,9 @@ class PetWidget(QWidget):
     # --- painting -------------------------------------------------------
     def paintEvent(self, event):  # noqa: N802 (Qt naming)
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        color = _STATE_COLORS.get(self._state, _STATE_COLORS["idle"])
-        painter.setBrush(color)
-        painter.setPen(Qt.NoPen)
-        painter.drawEllipse(8, 8, PET_SIZE - 16, PET_SIZE - 16)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
+        frames = self._frames.get(self._state) or self._frames["idle"]
+        painter.drawPixmap(0, 0, frames[self._frame_index % len(frames)])
 
     # --- mouse: drag + click-to-open-input ------------------------------
     def mousePressEvent(self, event):  # noqa: N802
@@ -234,6 +245,10 @@ class PetWidget(QWidget):
     def _position_bubble(self) -> None:
         pos = self.pos()
         self._bubble.move(pos.x(), max(0, pos.y() - self._bubble.height()))
+
+    def _advance_frame(self) -> None:
+        self._frame_index = (self._frame_index + 1) % 2
+        self.update()
 
     def _roam_tick(self) -> None:
         screen = self.screen().availableGeometry() if self.screen() else None

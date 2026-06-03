@@ -134,3 +134,22 @@ def test_request_settings_emits_signal(qapp):
     pet.settings_requested.connect(lambda: received.append(True))
     pet.request_settings()
     assert received == [True]
+
+
+def test_set_state_resets_frame_and_advance_cycles(qapp):
+    pet = PetWidget()
+    pet.set_state("walking")
+    assert pet._frame_index == 0
+    pet._advance_frame()
+    assert pet._frame_index == 1
+    pet._advance_frame()
+    assert pet._frame_index == 0
+    pet.set_state("idle")  # switching state resets the frame
+    assert pet._frame_index == 0
+
+
+def test_unknown_state_falls_back_to_idle_without_crash(qapp):
+    pet = PetWidget()
+    pet.set_state("dancing")  # not a real state
+    pet.show()
+    pet.repaint()  # must not raise even with an unknown state
