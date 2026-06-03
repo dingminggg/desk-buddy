@@ -3,11 +3,14 @@ import random
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
+    QFrame,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -70,29 +73,52 @@ class PetWidget(QWidget):
         self._bubble_timer.setSingleShot(True)
         self._bubble_timer.timeout.connect(self._bubble.hide)
 
-        # Click-to-type input bar: a small frameless popup holding just the
-        # text field and a ✕ close button.
+        # Click-to-type input bar: a small frameless popup. A translucent
+        # top-level window holds an inner white "card" (rounded + soft shadow)
+        # with just the text field and a ✕ close button.
         self._input_bar = QWidget(
             None,
             Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint,
         )
+        self._input_bar.setAttribute(Qt.WA_TranslucentBackground)
         self._input_bar.setStyleSheet(
-            "QWidget { background:#ffffff; border:1px solid #d9c97a;"
-            " border-radius:8px; }"
-            " QPushButton { border:none; color:#888; font-weight:bold; }"
-            " QPushButton:hover { color:#e05a5a; }")
-        bar_layout = QHBoxLayout(self._input_bar)
-        bar_layout.setContentsMargins(8, 6, 6, 6)
-        bar_layout.setSpacing(4)
+            "#card { background:#ffffff; border:1px solid #ece4d3;"
+            " border-radius:12px; }"
+            " QLineEdit { border:none; background:transparent; color:#3a3a3a;"
+            " font-size:13px; padding:4px 2px; }"
+            " QLineEdit:focus { outline:none; }"
+            " #closeBtn { border:none; background:transparent; color:#b7ae98;"
+            " font-size:13px; border-radius:11px; }"
+            " #closeBtn:hover { background:#f3ecda; color:#e2685f; }")
+
+        outer = QVBoxLayout(self._input_bar)
+        outer.setContentsMargins(14, 12, 14, 14)  # room for the drop shadow
+
+        card = QFrame()
+        card.setObjectName("card")
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(12, 6, 8, 6)
+        card_layout.setSpacing(6)
         self._input = QLineEdit()
         self._input.setPlaceholderText("跟我说点啥…")
-        self._input.setFixedWidth(200)
+        self._input.setFixedWidth(210)
         self._input.returnPressed.connect(self._on_input_return)
         self._close_btn = QPushButton("✕")
-        self._close_btn.setFixedWidth(22)
+        self._close_btn.setObjectName("closeBtn")
+        self._close_btn.setFixedSize(22, 22)
+        self._close_btn.setCursor(Qt.PointingHandCursor)
         self._close_btn.clicked.connect(self._hide_input)
-        bar_layout.addWidget(self._input)
-        bar_layout.addWidget(self._close_btn)
+        card_layout.addWidget(self._input)
+        card_layout.addWidget(self._close_btn)
+        outer.addWidget(card)
+
+        shadow = QGraphicsDropShadowEffect(self._input_bar)
+        shadow.setBlurRadius(20)
+        shadow.setXOffset(0)
+        shadow.setYOffset(3)
+        shadow.setColor(QColor(0, 0, 0, 70))
+        card.setGraphicsEffect(shadow)
+
         self._input_bar.hide()
 
         # Roaming.
