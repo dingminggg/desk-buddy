@@ -156,3 +156,34 @@ def test_paint_and_set_state_do_not_crash(qapp):
     pet.set_state("idle")
     pet.show()
     pet.repaint()  # paints current GIF frame; must not raise
+
+
+def test_show_alert_visible_and_nag_timer_running(qapp):
+    pet = PetWidget()
+    pet.show_alert("⏰ 喝水")
+    assert pet._alert.isHidden() is False
+    assert pet._alert_label.text() == "⏰ 喝水"
+    # persistent: a 30s nag timer is running (no auto-hide timer involved)
+    assert pet._alert_nag_timer.isActive() is True
+    from desk_buddy.pet_widget import ALERT_NAG_MS
+    assert pet._alert_nag_timer.interval() == ALERT_NAG_MS
+
+
+def test_alert_ack_button_dismisses_and_signals(qapp):
+    pet = PetWidget()
+    received = []
+    pet.alert_dismissed.connect(lambda: received.append(True))
+    pet.show_alert("⏰ 喝水")
+    pet._alert_ack_btn.click()
+    assert pet._alert.isHidden() is True
+    assert received == [True]
+    assert pet._alert_nag_timer.isActive() is False
+
+
+def test_alert_nag_timer_emits_alert_nag(qapp):
+    pet = PetWidget()
+    received = []
+    pet.alert_nag.connect(lambda: received.append(True))
+    pet.show_alert("⏰ 喝水")
+    pet._alert_nag_timer.timeout.emit()  # simulate a 30s tick
+    assert received == [True]

@@ -21,6 +21,7 @@ ROAM_INTERVAL_MS = 4000
 ROAM_STEP = 8
 BUBBLE_TIMEOUT_MS = 6000
 DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
+ALERT_NAG_MS = 30000  # re-sound an unacknowledged reminder every 30s
 
 GIF_PATH = Path(__file__).parent / "assets" / "frog.gif"
 
@@ -45,6 +46,8 @@ class PetWidget(QWidget):
     clicked = Signal()
     settings_requested = Signal()
     quit_requested = Signal()
+    alert_dismissed = Signal()
+    alert_nag = Signal()
 
     def __init__(self):
         super().__init__()
@@ -129,6 +132,50 @@ class PetWidget(QWidget):
 
         self._input_bar.hide()
 
+        # Persistent reminder alert: a card with the reminder text and a
+        # "知道了" button. Does NOT auto-hide; re-sounds every 30s until closed.
+        self._alert = QWidget(
+            None,
+            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint,
+        )
+        self._alert.setAttribute(Qt.WA_TranslucentBackground)
+        self._alert.setStyleSheet(
+            "#alertCard { background:#ffffff; border:1px solid #ece4d3;"
+            " border-radius:12px; }"
+            " QLabel { color:#3a3a3a; font-size:13px; }"
+            " #ackBtn { border:none; background:#7ec488; color:#ffffff;"
+            " border-radius:8px; padding:4px 12px; font-size:12px; }"
+            " #ackBtn:hover { background:#6bb377; }")
+        alert_outer = QVBoxLayout(self._alert)
+        alert_outer.setContentsMargins(14, 12, 14, 14)
+        alert_card = QFrame()
+        alert_card.setObjectName("alertCard")
+        alert_box = QVBoxLayout(alert_card)
+        alert_box.setContentsMargins(12, 10, 12, 10)
+        alert_box.setSpacing(8)
+        self._alert_label = QLabel()
+        self._alert_label.setWordWrap(True)
+        self._alert_label.setMaximumWidth(220)
+        self._alert_ack_btn = QPushButton("知道了")
+        self._alert_ack_btn.setObjectName("ackBtn")
+        self._alert_ack_btn.setCursor(Qt.PointingHandCursor)
+        self._alert_ack_btn.clicked.connect(self._dismiss_alert)
+        alert_box.addWidget(self._alert_label)
+        alert_box.addWidget(self._alert_ack_btn, alignment=Qt.AlignRight)
+        alert_outer.addWidget(alert_card)
+        alert_shadow = QGraphicsDropShadowEffect(self._alert)
+        alert_shadow.setBlurRadius(20)
+        alert_shadow.setXOffset(0)
+        alert_shadow.setYOffset(3)
+        alert_shadow.setColor(QColor(0, 0, 0, 80))
+        alert_card.setGraphicsEffect(alert_shadow)
+        self._alert.hide()
+
+        # Re-sound timer for an unacknowledged reminder (no auto-hide).
+        self._alert_nag_timer = QTimer(self)
+        self._alert_nag_timer.setInterval(ALERT_NAG_MS)
+        self._alert_nag_timer.timeout.connect(self.alert_nag.emit)
+
         # Roaming.
         self._roam_timer = QTimer(self)
         self._roam_timer.timeout.connect(self._roam_tick)
@@ -195,6 +242,8 @@ class PetWidget(QWidget):
             self._position_bubble()
             if not self._input_bar.isHidden():
                 self._position_input()
+            if not self._alert.isHidden():
+                self._position_alert()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
         was_click = self._drag_offset is not None and not self._moved
@@ -211,6 +260,14 @@ class PetWidget(QWidget):
         self._input.setFocus()
         self._apply_roaming()  # pause roaming while the user types
 
+    def show_alert(self, text: str) -> None:
+        """Show a persistent reminder alert; stays until the user clicks 知道了."""
+        self._alert_label.setText(text)
+        self._alert.adjustSize()
+        self._position_alert()
+        self._alert.show()
+        self._alert_nag_timer.start()
+
     def request_settings(self) -> None:
         """Ask the controller to open the settings dialog."""
         self.settings_requested.emit()
@@ -225,6 +282,19 @@ class PetWidget(QWidget):
     def _hide_input(self) -> None:
         self._input_bar.hide()
         self._apply_roaming()  # resume roaming if it was enabled
+
+    def _dismiss_alert(self) -> None:
+        self._alert_nag_timer.stop()
+        self._alert.hide()
+        self.alert_dismissed.emit()
+
+    def _position_alert(self) -> None:
+        pos = self.pos()
+        x = pos.x()
+        y = pos.y() - self._alert.height()
+        if y < 0:  # no room above -> place below the pet
+            y = pos.y() + PET_SIZE
+        self._alert.move(x, y)
 
     def _on_input_return(self) -> None:
         text = self._input.text().strip()
