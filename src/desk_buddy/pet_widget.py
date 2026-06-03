@@ -22,6 +22,7 @@ ROAM_STEP = 8
 BUBBLE_TIMEOUT_MS = 6000
 DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
 ALERT_NAG_MS = 30000  # re-sound an unacknowledged reminder every 30s
+ALERT_GAP_FUDGE = 34  # px: cancel the alert window's margin + frog head padding so it hugs the pet
 
 GIF_PATH = Path(__file__).parent / "assets" / "frog.gif"
 
@@ -289,11 +290,14 @@ class PetWidget(QWidget):
         self.alert_dismissed.emit()
 
     def _position_alert(self) -> None:
+        # Centered over the pet and tucked right against its head so the alert
+        # reads as attached to the frog. ALERT_GAP_FUDGE cancels the alert
+        # window's transparent margin (+ a few px of overlap).
         pos = self.pos()
-        x = pos.x()
-        y = pos.y() - self._alert.height()
-        if y < 0:  # no room above -> place below the pet
-            y = pos.y() + PET_SIZE
+        x = pos.x() + PET_SIZE // 2 - self._alert.width() // 2
+        y = pos.y() - self._alert.height() + ALERT_GAP_FUDGE
+        if y < 0:  # no room above -> tuck it against the pet's bottom instead
+            y = pos.y() + PET_SIZE - ALERT_GAP_FUDGE
         self._alert.move(x, y)
 
     def _on_input_return(self) -> None:
