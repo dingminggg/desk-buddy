@@ -13,31 +13,36 @@ def needs_setup(config: Config) -> bool:
     return not config.is_configured
 
 
-def _run_setup_dialog(config: Config) -> Config:
-    """Prompt for base_url / model / api_key on first run. Returns updated config."""
+def _run_setup_dialog(config: Config) -> bool:
+    """Prompt for base_url / model / api_key. Apply to `config` ONLY if the
+    user confirms (clicks 保存). Returns True if the config was updated."""
     from PySide6.QtWidgets import (
         QDialog, QFormLayout, QLineEdit, QPushButton,
     )
 
     dialog = QDialog()
-    dialog.setWindowTitle("desk-buddy 首次设置")
+    dialog.setWindowTitle("desk-buddy 设置")
     form = QFormLayout(dialog)
-    base = QLineEdit(config.base_url or "https://api.openai.com/v1")
-    model = QLineEdit(config.model or "gpt-4o-mini")
+    base = QLineEdit(config.base_url)
+    base.setPlaceholderText("https://api.openai.com/v1")
+    model = QLineEdit(config.model)
+    model.setPlaceholderText("gpt-4o-mini")
     key = QLineEdit(config.api_key)
-    key.setEchoMode(QLineEdit.Password)
+    key.setEchoMode(QLineEdit.EchoMode.Password)
     form.addRow("Base URL", base)
     form.addRow("Model", model)
     form.addRow("API Key", key)
     ok = QPushButton("保存")
     ok.clicked.connect(dialog.accept)
     form.addRow(ok)
-    dialog.exec()
+
+    if dialog.exec() != QDialog.DialogCode.Accepted:
+        return False  # 关闭/取消 -> 不改动现有配置
 
     config.base_url = base.text().strip()
     config.model = model.text().strip()
     config.api_key = key.text().strip()
-    return config
+    return True
 
 
 def main() -> int:
@@ -50,9 +55,6 @@ def main() -> int:
 
     config_path = default_config_path()
     config = load_config(config_path)
-    if needs_setup(config):
-        config = _run_setup_dialog(config)
-        save_config(config, config_path)
 
     db_path = str(config_path.parent / "reminders.db")
     store = ReminderStore(db_path)
@@ -61,7 +63,24 @@ def main() -> int:
     from . import notify
 
     controller = App(config, store, brain, pet, notify)
+
+    def open_settings() -> None:
+        if not _run_setup_dialog(config):
+            return
+        save_config(config, config_path)
+        if config.is_configured:
+            controller.brain = Brain(build_provider(config))
+            pet.say("大脑接上啦～现在可以跟我说要提醒啥啦！")
+
+    def on_pet_clicked() -> None:
+        if config.is_configured:
+            pet.prompt_input()
+        else:
+            open_settings()
+
     pet.user_said.connect(controller.handle_user_text)
+    pet.clicked.connect(on_pet_clicked)
+    pet.settings_requested.connect(open_settings)
     pet.set_roaming(config.roam_enabled)
 
     scheduler = Scheduler(store, controller.handle_reminder_due)
@@ -72,7 +91,10 @@ def main() -> int:
     timer.start(TICK_INTERVAL_MS)
 
     pet.show()
-    pet.say("我在啦～ 点我跟我说要提醒啥～")
+    if needs_setup(config):
+        pet.say("我还没连上大脑，点我设置一下吧～")
+    else:
+        pet.say("我在啦～ 点我说要提醒啥～")
     return app.exec()
 
 

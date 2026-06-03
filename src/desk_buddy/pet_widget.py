@@ -2,7 +2,7 @@ import random
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QLabel, QLineEdit, QWidget
+from PySide6.QtWidgets import QLabel, QLineEdit, QMenu, QWidget
 
 PET_SIZE = 96
 ROAM_INTERVAL_MS = 4000
@@ -22,10 +22,16 @@ class PetWidget(QWidget):
       - say(text): show a speech bubble above the pet
       - set_state(state): 'idle' | 'walking' (changes appearance)
       - set_roaming(enabled): toggle autonomous wandering
+      - prompt_input(): show the click-to-type input bar
       - signal user_said(str): emitted when the user submits the input bar
+      - signal clicked(): emitted on a left-click that isn't a drag
+      - signal settings_requested(): emitted when the user picks 设置 in the
+        right-click menu
     """
 
     user_said = Signal(str)
+    clicked = Signal()
+    settings_requested = Signal()
 
     def __init__(self):
         super().__init__()
@@ -105,6 +111,8 @@ class PetWidget(QWidget):
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.LeftButton:
             self._drag_offset = event.globalPosition().toPoint() - self.pos()
+        elif event.button() == Qt.RightButton:
+            self._show_menu(event.globalPosition().toPoint())
 
     def mouseMoveEvent(self, event):  # noqa: N802
         if self._drag_offset is not None:
@@ -115,16 +123,28 @@ class PetWidget(QWidget):
         moved = self._drag_offset is not None and \
             (event.globalPosition().toPoint() - self.pos()) != self._drag_offset
         self._drag_offset = None
-        if not moved:  # a click, not a drag -> open the input bar
-            self._show_input()
+        if not moved:  # a click, not a drag -> let the controller decide
+            self.clicked.emit()
 
-    # --- internals ------------------------------------------------------
-    def _show_input(self) -> None:
+    # --- public API (cont.) ---------------------------------------------
+    def prompt_input(self) -> None:
+        """Show the click-to-type input bar just below the pet."""
         pos = self.pos()
         self._input.move(pos.x(), pos.y() + PET_SIZE)
         self._input.clear()
         self._input.show()
         self._input.setFocus()
+
+    def request_settings(self) -> None:
+        """Ask the controller to open the settings dialog."""
+        self.settings_requested.emit()
+
+    # --- internals ------------------------------------------------------
+    def _show_menu(self, global_pos) -> None:
+        menu = QMenu(self)
+        action = menu.addAction("设置")
+        action.triggered.connect(self.request_settings)
+        menu.exec(global_pos)
 
     def _on_input_return(self) -> None:
         text = self._input.text().strip()
