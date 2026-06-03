@@ -14,6 +14,7 @@ from desk_buddy.store import ReminderStore
 class FakePet:
     def __init__(self):
         self.said = []
+        self.alerts = []
         self.state = "idle"
 
     def say(self, text):
@@ -21,6 +22,9 @@ class FakePet:
 
     def set_state(self, state):
         self.state = state
+
+    def show_alert(self, text):
+        self.alerts.append(text)
 
 
 class FakeNotifier:
@@ -118,19 +122,61 @@ def test_llm_error_saves_draft_and_apologizes(store):
     assert app.pet.said  # apologized, did not crash
 
 
-def test_reminder_due_bubbles_toasts_and_sounds(store):
+def _mk(text, m=0):
+    return Reminder(text=text, due_at=datetime(2026, 6, 4, 15, m),
+                    created_at=datetime(2026, 6, 3, 10, 0))
+
+
+def test_reminder_due_presents_persistent_alert(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    r = Reminder(text="喝水", due_at=datetime(2026, 6, 4, 15, 0),
-                 created_at=datetime(2026, 6, 3, 10, 0))
-    app.handle_reminder_due(r)
-    assert app.pet.state == "walking"
+    app.handle_reminder_due(_mk("喝水"))
+    assert app.pet.alerts == ["⏰ 喝水"]
     assert app.notifier.toasts and "喝水" in app.notifier.toasts[0][1]
     assert app.notifier.sounds == 1
+    assert app._alert_active is True
 
 
 def test_reminder_due_respects_sound_disabled(store):
     app = _app(store, StubBrain(), Config(sound_enabled=False))
-    r = Reminder(text="喝水", due_at=datetime(2026, 6, 4, 15, 0),
-                 created_at=datetime(2026, 6, 3, 10, 0))
-    app.handle_reminder_due(r)
+    app.handle_reminder_due(_mk("喝水"))
+    assert app.pet.alerts == ["⏰ 喝水"]   # alert + toast still happen
+    assert app.notifier.toasts
+    assert app.notifier.sounds == 0
+
+
+def test_only_one_alert_shown_at_a_time(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.handle_reminder_due(_mk("A", 0))
+    app.handle_reminder_due(_mk("B", 1))
+    app.handle_reminder_due(_mk("C", 2))
+    assert app.pet.alerts == ["⏰ A"]  # B,C still queued
+    assert len(app._due_queue) == 2
+
+
+def test_dismiss_shows_next_until_empty(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    for t in ("A", "B", "C"):
+        app.handle_reminder_due(_mk(t))
+    app.on_alert_dismissed()  # -> B
+    app.on_alert_dismissed()  # -> C
+    assert app.pet.alerts == ["⏰ A", "⏰ B", "⏰ C"]
+    app.on_alert_dismissed()  # queue empty
+    assert app._alert_active is False
+    assert app.pet.alerts == ["⏰ A", "⏰ B", "⏰ C"]  # nothing new
+
+
+def test_nag_plays_sound_only(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.handle_reminder_due(_mk("喝水"))
+    sounds_before = app.notifier.sounds
+    app.on_alert_nag()
+    assert app.notifier.sounds == sounds_before + 1
+    assert app.pet.alerts == ["⏰ 喝水"]  # nag doesn't change the queue/alert
+    assert app._alert_active is True
+
+
+def test_nag_respects_sound_disabled(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=False))
+    app.handle_reminder_due(_mk("喝水"))
+    app.on_alert_nag()
     assert app.notifier.sounds == 0

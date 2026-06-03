@@ -88,7 +88,9 @@ def main() -> int:
     pet.clicked.connect(on_pet_clicked)
     pet.settings_requested.connect(open_settings)
     pet.quit_requested.connect(app.quit)
-    pet.set_roaming(config.roam_enabled)
+    pet.alert_dismissed.connect(controller.on_alert_dismissed)
+    pet.alert_nag.connect(controller.on_alert_nag)
+    pet.set_roaming(False)  # roaming temporarily disabled for the frog
 
     scheduler = Scheduler(store, controller.handle_reminder_due)
     scheduler.tick(datetime.now())  # startup catch-up for missed reminders
