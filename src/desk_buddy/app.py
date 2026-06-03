@@ -12,9 +12,10 @@ def _fmt(dt: datetime) -> str:
 
 class App:
     """Wires PetWidget input -> Brain -> ReminderStore -> bubble feedback,
-    and Scheduler due events -> bubble + toast + sound.
+    and Scheduler due events -> a persistent reminder alert (queued, one at a
+    time, manually dismissed, nagged every 30s).
 
-    `pet` needs `say(text)` and `set_state(state)`.
+    `pet` needs `say(text)`, `set_state(state)`, `show_alert(text)`.
     `notifier` needs `toast(title, message)` and `play_sound()`.
     """
 
@@ -24,6 +25,8 @@ class App:
         self.brain = brain
         self.pet = pet
         self.notifier = notifier
+        self._due_queue: list[Reminder] = []
+        self._alert_active = False
 
     def handle_user_text(self, text: str) -> None:
         try:
@@ -78,8 +81,27 @@ class App:
         self.pet.say(f"「{matches[0].text}」已取消～")
 
     def handle_reminder_due(self, reminder: Reminder) -> None:
-        self.pet.set_state("walking")
-        self.pet.say(f"⏰ 该「{reminder.text}」啦！")
+        # Queue the due reminder; show it now if nothing is on screen.
+        self._due_queue.append(reminder)
+        if not self._alert_active:
+            self._present_next_due()
+
+    def _present_next_due(self) -> None:
+        if not self._due_queue:
+            return
+        reminder = self._due_queue.pop(0)
+        self._alert_active = True
+        self.pet.show_alert(f"⏰ {reminder.text}")
         self.notifier.toast("desk-buddy 提醒", reminder.text)
+        if self.config.sound_enabled:
+            self.notifier.play_sound()
+
+    def on_alert_dismissed(self) -> None:
+        # User closed the current alert -> show the next queued one, if any.
+        self._alert_active = False
+        self._present_next_due()
+
+    def on_alert_nag(self) -> None:
+        # Re-sound every 30s while a reminder stays unacknowledged.
         if self.config.sound_enabled:
             self.notifier.play_sound()
