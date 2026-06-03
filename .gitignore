@@ -8,6 +8,7 @@ build/
 dist/
 
 # 配置与密钥（绝不入库）
+config.json
 config.local.*
 *.key
 .env
