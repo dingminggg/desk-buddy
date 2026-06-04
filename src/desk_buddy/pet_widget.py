@@ -327,8 +327,12 @@ class PetWidget(QWidget):
             self.user_said.emit(text)
 
     def _position_input(self) -> None:
+        # 水平居中对齐宠物（只调左右），垂直方向永远贴在宠物正下方。
         pos = self.pos()
-        self._input_bar.move(pos.x(), pos.y() + PET_SIZE)
+        w = (self._input_bar.width() if self._input_bar.isVisible()
+             else self._input_bar.sizeHint().width())
+        x = pos.x() + PET_SIZE // 2 - w // 2
+        self._input_bar.move(x, pos.y() + PET_SIZE)
 
     def _position_bubble(self) -> None:
         pos = self.pos()
