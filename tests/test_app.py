@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from desk_buddy.app import App
+from desk_buddy.app import App, CC_ALERT_TEXT
 from desk_buddy.brain import Brain
 from desk_buddy.config import Config
 from desk_buddy.llm.base import LLMProvider, LLMError
@@ -15,6 +15,8 @@ class FakePet:
     def __init__(self):
         self.said = []
         self.alerts = []
+        self.alert_kinds = []
+        self.hidden = 0
         self.state = "idle"
 
     def say(self, text):
@@ -23,8 +25,12 @@ class FakePet:
     def set_state(self, state):
         self.state = state
 
-    def show_alert(self, text):
+    def show_alert(self, text, kind="reminder"):
         self.alerts.append(text)
+        self.alert_kinds.append(kind)
+
+    def hide_alert(self):
+        self.hidden += 1
 
 
 class FakeNotifier:
@@ -245,3 +251,67 @@ def test_async_generic_error_no_draft(store):
     assert store.list_drafts() == []
     assert app._busy is False
     assert app.pet.said[-1] == "出了点小问题，稍后再说～"
+
+
+def test_cc_pending_shows_alert_and_rings_once(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)
+    assert app.pet.alerts[-1] == CC_ALERT_TEXT
+    assert app.pet.alert_kinds[-1] == "cc"
+    assert app.notifier.sounds == 1
+    assert app._alert_kind == "cc"
+
+
+def test_cc_resolved_hides_alert(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)
+    app.update_cc_pending(False)
+    assert app.pet.hidden == 1
+    assert app._alert_kind is None
+
+
+def test_cc_pending_idempotent_no_double_show(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)
+    app.update_cc_pending(True)  # poll fires again, same state
+    assert app.pet.alerts.count(CC_ALERT_TEXT) == 1
+    assert app.notifier.sounds == 1
+
+
+def test_cc_nag_caps_at_three_rings(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)   # ring 1
+    app.on_alert_nag()            # ring 2
+    app.on_alert_nag()            # ring 3
+    app.on_alert_nag()            # capped, silent
+    assert app.notifier.sounds == 3
+
+
+def test_reminder_priority_blocks_cc_until_dismissed(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.handle_reminder_due(_mk("会议"))  # reminder occupies the card
+    app.update_cc_pending(True)           # cc pending, must NOT show yet
+    assert app._alert_kind == "reminder"
+    assert CC_ALERT_TEXT not in app.pet.alerts
+    app.on_alert_dismissed()              # reminder closed -> cc fills the slot
+    assert app._alert_kind == "cc"
+    assert app.pet.alerts[-1] == CC_ALERT_TEXT
+
+
+def test_reminder_preempts_onscreen_cc(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)           # cc showing
+    app.handle_reminder_due(_mk("会议"))  # reminder preempts the card
+    assert app._alert_kind == "reminder"
+    assert app.pet.alerts[-1] == "⏰ 会议"
+    app.on_alert_dismissed()              # back to still-pending cc
+    assert app._alert_kind == "cc"
+    assert app.pet.alerts[-1] == CC_ALERT_TEXT
+
+
+def test_cc_manual_dismiss_does_not_reshow(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending(True)
+    app.on_alert_dismissed()              # user clicked 知道了 on the cc card
+    assert app._alert_kind is None
+    assert app.pet.alerts.count(CC_ALERT_TEXT) == 1

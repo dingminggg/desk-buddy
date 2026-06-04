@@ -1,6 +1,7 @@
 import sys
 from datetime import datetime
 
+from . import cc_signals
 from .app import App
 from .brain import Brain
 from .config import Config, default_config_path, load_config, save_config
@@ -99,6 +100,14 @@ def main() -> int:
     timer = QTimer()
     timer.timeout.connect(lambda: scheduler.tick(datetime.now()))
     timer.start(TICK_INTERVAL_MS)
+
+    # Claude Code「等你确认」轮询：启动清掉陈旧信号，再每秒扫一次
+    cc_signals.prune_stale()
+    cc_timer = QTimer()
+    cc_timer.timeout.connect(
+        lambda: controller.update_cc_pending(bool(cc_signals.read_pending()))
+    )
+    cc_timer.start(1000)
 
     pet.show()
     if needs_setup(config):
