@@ -6,7 +6,10 @@ a = Analysis(
     ["src/desk_buddy/main.py"],
     pathex=["src"],
     binaries=[],
-    datas=[("src/desk_buddy/assets/frog.gif", "desk_buddy/assets")],
+    datas=[
+        ("src/desk_buddy/assets/frog.gif", "desk_buddy/assets"),
+        ("src/desk_buddy/assets/guagua.mp3", "desk_buddy/assets"),
+    ],
     hiddenimports=["PySide6.QtMultimedia"],
     hookspath=[],
     runtime_hooks=[],
