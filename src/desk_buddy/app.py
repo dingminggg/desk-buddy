@@ -44,6 +44,8 @@ class App:
         self.runner = runner or SyncRunner()
         self._busy = False
         self._due_queue: list[Reminder] = []
+        # True only while a *reminder* owns the card. CC alerts intentionally
+        # leave this False so a due reminder preempts an on-screen CC alert.
         self._alert_active = False
         self._alert_kind = None  # None | "reminder" | "cc"
         self._cc_pending = False
