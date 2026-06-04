@@ -3,7 +3,7 @@
 block_cipher = None
 
 a = Analysis(
-    ["src/desk_buddy/main.py"],
+    ["launch.py"],
     pathex=["src"],
     binaries=[],
     datas=[
