@@ -142,21 +142,21 @@ class PetWidget(QWidget):
         self._alert.setAttribute(Qt.WA_TranslucentBackground)
         self._alert.setStyleSheet(
             "#alertCard { background:#ffffff; border:1px solid #ece4d3;"
-            " border-radius:12px; }"
-            " QLabel { color:#3a3a3a; font-size:13px; }"
+            " border-radius:14px; }"
+            " QLabel { color:#3a3a3a; font-size:16px; }"
             " #ackBtn { border:none; background:#7ec488; color:#ffffff;"
-            " border-radius:8px; padding:4px 12px; font-size:12px; }"
+            " border-radius:9px; padding:7px 18px; font-size:14px; }"
             " #ackBtn:hover { background:#6bb377; }")
         alert_outer = QVBoxLayout(self._alert)
         alert_outer.setContentsMargins(14, 12, 14, 14)
         alert_card = QFrame()
         alert_card.setObjectName("alertCard")
         alert_box = QVBoxLayout(alert_card)
-        alert_box.setContentsMargins(12, 10, 12, 10)
-        alert_box.setSpacing(8)
+        alert_box.setContentsMargins(18, 16, 18, 16)
+        alert_box.setSpacing(12)
         self._alert_label = QLabel()
         self._alert_label.setWordWrap(True)
-        self._alert_label.setMaximumWidth(220)
+        self._alert_label.setMaximumWidth(320)
         self._alert_ack_btn = QPushButton("知道了")
         self._alert_ack_btn.setObjectName("ackBtn")
         self._alert_ack_btn.setCursor(Qt.PointingHandCursor)
