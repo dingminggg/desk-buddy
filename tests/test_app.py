@@ -35,14 +35,12 @@ class FakePet:
 
 class FakeNotifier:
     def __init__(self):
-        self.toasts = []
         self.sounds = 0
+        self.sound_files = []
 
-    def toast(self, title, message):
-        self.toasts.append((title, message))
-
-    def play_sound(self):
+    def play_sound(self, sound_file=""):
         self.sounds += 1
+        self.sound_files.append(sound_file)
 
 
 class StubBrain:
@@ -137,7 +135,6 @@ def test_reminder_due_presents_persistent_alert(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
     app.handle_reminder_due(_mk("喝水"))
     assert app.pet.alerts == ["⏰ 喝水"]
-    assert app.notifier.toasts and "喝水" in app.notifier.toasts[0][1]
     assert app.notifier.sounds == 1
     assert app._alert_active is True
 
@@ -145,8 +142,7 @@ def test_reminder_due_presents_persistent_alert(store):
 def test_reminder_due_respects_sound_disabled(store):
     app = _app(store, StubBrain(), Config(sound_enabled=False))
     app.handle_reminder_due(_mk("喝水"))
-    assert app.pet.alerts == ["⏰ 喝水"]   # alert + toast still happen
-    assert app.notifier.toasts
+    assert app.pet.alerts == ["⏰ 喝水"]   # alert still shows
     assert app.notifier.sounds == 0
 
 
@@ -315,3 +311,10 @@ def test_cc_manual_dismiss_does_not_reshow(store):
     app.on_alert_dismissed()              # user clicked 知道了 on the cc card
     assert app._alert_kind is None
     assert app.pet.alerts.count(CC_ALERT_TEXT) == 1
+
+
+def test_configured_sound_file_is_passed_to_notifier(store):
+    app = _app(store, StubBrain(),
+               Config(sound_enabled=True, sound_file="C:/snd/guagua.mp3"))
+    app.handle_reminder_due(_mk("喝水"))
+    assert app.notifier.sound_files[-1] == "C:/snd/guagua.mp3"

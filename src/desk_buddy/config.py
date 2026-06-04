@@ -12,6 +12,7 @@ class Config(BaseModel):
     api_key: str = ""
     roam_enabled: bool = True
     sound_enabled: bool = True
+    sound_file: str = ""  # 自定义提示音（mp3/wav 绝对路径）；留空用默认叮声
     character: str = "default"
 
     @property

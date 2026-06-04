@@ -16,10 +16,11 @@ def needs_setup(config: Config) -> bool:
 
 
 def _run_setup_dialog(config: Config) -> bool:
-    """Prompt for base_url / model / api_key. Apply to `config` ONLY if the
-    user confirms (clicks 保存). Returns True if the config was updated."""
+    """Prompt for base_url / model / api_key / 提醒声音. Apply to `config` ONLY
+    if the user confirms (clicks 保存). Returns True if the config was updated."""
     from PySide6.QtWidgets import (
-        QDialog, QFormLayout, QLineEdit, QPushButton,
+        QCheckBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
+        QLineEdit, QPushButton, QWidget,
     )
 
     dialog = QDialog()
@@ -34,6 +35,29 @@ def _run_setup_dialog(config: Config) -> bool:
     form.addRow("Base URL", base)
     form.addRow("Model", model)
     form.addRow("API Key", key)
+
+    sound_on = QCheckBox("提醒时播放声音")
+    sound_on.setChecked(config.sound_enabled)
+    form.addRow(sound_on)
+
+    sound_file = QLineEdit(config.sound_file)
+    sound_file.setPlaceholderText("mp3/wav 路径，留空用默认叮声")
+    browse = QPushButton("浏览…")
+
+    def _pick_sound() -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            dialog, "选择提示音", "", "音频 (*.mp3 *.wav);;所有文件 (*)")
+        if path:
+            sound_file.setText(path)
+
+    browse.clicked.connect(_pick_sound)
+    sound_row = QWidget()
+    sound_layout = QHBoxLayout(sound_row)
+    sound_layout.setContentsMargins(0, 0, 0, 0)
+    sound_layout.addWidget(sound_file)
+    sound_layout.addWidget(browse)
+    form.addRow("提示音", sound_row)
+
     ok = QPushButton("保存")
     ok.clicked.connect(dialog.accept)
     form.addRow(ok)
@@ -44,6 +68,8 @@ def _run_setup_dialog(config: Config) -> bool:
     config.base_url = base.text().strip()
     config.model = model.text().strip()
     config.api_key = key.text().strip()
+    config.sound_enabled = sound_on.isChecked()
+    config.sound_file = sound_file.text().strip()
     return True
 
 

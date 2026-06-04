@@ -1,24 +1,33 @@
 import desk_buddy.notify as notify
 
 
-def test_toast_calls_backend(monkeypatch):
-    captured = {}
-
-    def fake_notify(title, message, app_name, timeout):
-        captured["title"] = title
-        captured["message"] = message
-
-    monkeypatch.setattr(notify, "_plyer_notify", fake_notify)
-    notify.toast("标题", "内容")
-    assert captured == {"title": "标题", "message": "内容"}
+def test_play_sound_beeps_when_no_file(monkeypatch):
+    calls = {"beep": 0, "file": []}
+    monkeypatch.setattr(notify, "_beep", lambda: calls.__setitem__("beep", calls["beep"] + 1))
+    monkeypatch.setattr(notify, "_play_file", lambda p: calls["file"].append(p))
+    notify.play_sound("")  # no custom file -> default beep
+    assert calls["beep"] == 1
+    assert calls["file"] == []
 
 
-def test_toast_swallows_backend_errors(monkeypatch):
-    def boom(*a, **k):
-        raise RuntimeError("no notifier on this box")
+def test_play_sound_plays_existing_file(monkeypatch, tmp_path):
+    snd = tmp_path / "guagua.mp3"
+    snd.write_bytes(b"fake")
+    calls = {"beep": 0, "file": []}
+    monkeypatch.setattr(notify, "_beep", lambda: calls.__setitem__("beep", calls["beep"] + 1))
+    monkeypatch.setattr(notify, "_play_file", lambda p: calls["file"].append(p))
+    notify.play_sound(str(snd))
+    assert calls["file"] == [str(snd)]
+    assert calls["beep"] == 0
 
-    monkeypatch.setattr(notify, "_plyer_notify", boom)
-    notify.toast("t", "m")  # must NOT raise
+
+def test_play_sound_beeps_when_file_missing(monkeypatch):
+    calls = {"beep": 0, "file": []}
+    monkeypatch.setattr(notify, "_beep", lambda: calls.__setitem__("beep", calls["beep"] + 1))
+    monkeypatch.setattr(notify, "_play_file", lambda p: calls["file"].append(p))
+    notify.play_sound("C:/does/not/exist.mp3")  # bad path -> fall back to beep
+    assert calls["beep"] == 1
+    assert calls["file"] == []
 
 
 def test_play_sound_swallows_errors(monkeypatch):
@@ -26,4 +35,4 @@ def test_play_sound_swallows_errors(monkeypatch):
         raise RuntimeError("no audio")
 
     monkeypatch.setattr(notify, "_beep", boom)
-    notify.play_sound()  # must NOT raise
+    notify.play_sound("")  # must NOT raise

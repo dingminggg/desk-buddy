@@ -32,7 +32,7 @@ class App:
     time, manually dismissed, nagged every 30s).
 
     `pet` needs `say(text)`, `set_state(state)`, `show_alert(text)`.
-    `notifier` needs `toast(title, message)` and `play_sound()`.
+    `notifier` needs `play_sound(sound_file="")`.
     """
 
     def __init__(self, config: Config, store, brain, pet, notifier, runner=None):
@@ -130,9 +130,8 @@ class App:
             self._alert_active = True
             self._alert_kind = "reminder"
             self.pet.show_alert(f"⏰ {reminder.text}")
-            self.notifier.toast("desk-buddy 提醒", reminder.text)
             if self.config.sound_enabled:
-                self.notifier.play_sound()
+                self.notifier.play_sound(self.config.sound_file)
             return
         # 没有更多定点提醒：让出卡片，若 Claude Code 仍在等确认则补弹 CC
         self._alert_active = False
@@ -155,12 +154,12 @@ class App:
         if self._alert_kind == "cc":
             if self._cc_ring_count < CC_MAX_RINGS:
                 if self.config.sound_enabled:
-                    self.notifier.play_sound()
+                    self.notifier.play_sound(self.config.sound_file)
                 self._cc_ring_count += 1
             return
         # 定点提醒：每 30s 持续响，直到手动关闭
         if self.config.sound_enabled:
-            self.notifier.play_sound()
+            self.notifier.play_sound(self.config.sound_file)
 
     def update_cc_pending(self, pending: bool) -> None:
         """由 main 的轮询调用：pending = pending 目录是否非空。"""
@@ -182,6 +181,5 @@ class App:
         self._alert_kind = "cc"
         self._cc_ring_count = 1
         self.pet.show_alert(CC_ALERT_TEXT, kind="cc")
-        self.notifier.toast("desk-buddy", "Claude Code 在等你确认")
         if self.config.sound_enabled:
-            self.notifier.play_sound()
+            self.notifier.play_sound(self.config.sound_file)
