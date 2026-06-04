@@ -264,10 +264,9 @@ class PetWidget(QWidget):
     def show_alert(self, text: str, kind: str = "reminder") -> None:
         """Show a persistent alert card; stays until dismissed.
 
-        kind: "reminder" (定点提醒) 或 "cc" (Claude Code 等确认)。当前用于
-        归属判定，预留样式区分；图标已包含在调用方传入的 text 里。
+        kind: "reminder" (定点提醒) 或 "cc" (Claude Code 等确认)，预留样式区分；
+        图标已包含在调用方传入的 text 里。提醒归属由 App 控制器统一记账。
         """
-        self._alert_kind = kind
         self._alert_label.setText(text)
         self._alert.adjustSize()
         self._position_alert()
