@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMenu,
     QPushButton,
@@ -23,6 +24,7 @@ BUBBLE_TIMEOUT_MS = 6000
 DRAG_THRESHOLD = 4  # px of movement before a press counts as a drag, not a click
 ALERT_NAG_MS = 30000  # re-sound an unacknowledged reminder every 30s
 ALERT_GAP_FUDGE = 34  # px: cancel the alert window's margin + frog head padding so it hugs the pet
+ALERT_TEXT_MAX_W = 300  # px: alert text wraps past this; box grows taller, not wider
 
 GIF_PATH = Path(__file__).parent / "assets" / "frog.gif"
 
@@ -145,18 +147,19 @@ class PetWidget(QWidget):
             " border-radius:14px; }"
             " QLabel { color:#3a3a3a; font-size:16px; }"
             " #ackBtn { border:none; background:#7ec488; color:#ffffff;"
-            " border-radius:8px; padding:4px 14px; font-size:14px; }"
+            " border-radius:8px; padding:3px 12px; font-size:14px; }"
             " #ackBtn:hover { background:#6bb377; }")
         alert_outer = QVBoxLayout(self._alert)
         alert_outer.setContentsMargins(14, 12, 14, 14)
+        # 让提醒窗口始终精确贴合内容尺寸（内容变化时自动随之缩放）。
+        alert_outer.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         alert_card = QFrame()
         alert_card.setObjectName("alertCard")
         alert_box = QVBoxLayout(alert_card)
-        alert_box.setContentsMargins(12, 9, 12, 9)
-        alert_box.setSpacing(8)
+        alert_box.setContentsMargins(10, 7, 10, 7)
+        alert_box.setSpacing(6)
         self._alert_label = QLabel()
         self._alert_label.setWordWrap(True)
-        self._alert_label.setMaximumWidth(320)
         self._alert_ack_btn = QPushButton("ok")
         self._alert_ack_btn.setObjectName("ackBtn")
         self._alert_ack_btn.setCursor(Qt.PointingHandCursor)
@@ -268,6 +271,13 @@ class PetWidget(QWidget):
         图标已包含在调用方传入的 text 里。提醒归属由 App 控制器统一记账。
         """
         self._alert_label.setText(text)
+        # 让卡片随内容增大且不被截断：按字体实测的单行宽度给标签定宽（上限
+        # ALERT_TEXT_MAX_W），再用 heightForWidth 把折行后的高度也定死——
+        # 这样窗口 adjustSize 能精确贴合，超长文字折成多行后卡片随之长高。
+        natural = self._alert_label.fontMetrics().horizontalAdvance(text)
+        width = min(natural + 8, ALERT_TEXT_MAX_W)
+        self._alert_label.setFixedWidth(width)
+        self._alert_label.setFixedHeight(self._alert_label.heightForWidth(width))
         self._alert.adjustSize()
         self._position_alert()
         self._alert.show()
