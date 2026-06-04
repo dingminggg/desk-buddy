@@ -30,6 +30,7 @@ def add_hook_entries(settings: dict, python_exe: str) -> dict:
     for event, module in HOOK_MODULES.items():
         cmd = _command(python_exe, module)
         entries = hooks.setdefault(event, [])
+        # 幂等按完整命令串匹配：若 venv 的 Python 路径变了，旧条目不会被清理（需手动删）
         already = any(
             cmd == h.get("command")
             for entry in entries
@@ -64,19 +65,17 @@ def install(python_exe: str | None = None, home: Path | None = None) -> Path:
 
     settings: dict = {}
     if path.exists():
+        # 先备份原始字节，再解析——这样即便原文件是损坏的 JSON 也能原样保留以便恢复
+        try:
+            path.with_suffix(".json.bak").write_bytes(path.read_bytes())
+        except OSError:
+            pass
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 settings = loaded
         except (json.JSONDecodeError, ValueError, OSError):
             settings = {}
-        # 备份原文件
-        try:
-            backup = path.with_suffix(".json.bak")
-            backup.write_text(json.dumps(settings, ensure_ascii=False, indent=2),
-                              encoding="utf-8")
-        except OSError:
-            pass
 
     add_hook_entries(settings, python_exe)
     _atomic_write(path, json.dumps(settings, ensure_ascii=False, indent=2))
