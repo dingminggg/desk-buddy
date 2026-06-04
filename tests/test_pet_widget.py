@@ -115,9 +115,9 @@ def test_input_bar_follows_pet_on_drag(qapp):
     pet.prompt_input()
     _drag(pet, 100, 100, 300, 300)  # drag pet to a new spot
     assert pet.x() == 300 and pet.y() == 300
-    # 水平居中对齐宠物，垂直永远在正下方
+    # 右对齐：输入框右边缘对齐宠物右边缘，垂直永远在正下方
     ib = pet._input_bar
-    assert ib.x() + ib.width() // 2 == 300 + PET_SIZE // 2
+    assert ib.x() + ib.width() == 300 + PET_SIZE
     assert ib.pos().y() == 300 + PET_SIZE
 
 
