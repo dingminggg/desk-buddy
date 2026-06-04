@@ -5,6 +5,9 @@ from .config import Config
 from .llm.base import LLMError
 from .models import IntentAction, Reminder
 
+CC_ALERT_TEXT = "🤖 Claude Code 在等你确认"
+CC_MAX_RINGS = 3
+
 
 def _fmt(dt: datetime) -> str:
     return dt.strftime("%m-%d %H:%M")
@@ -42,6 +45,9 @@ class App:
         self._busy = False
         self._due_queue: list[Reminder] = []
         self._alert_active = False
+        self._alert_kind = None  # None | "reminder" | "cc"
+        self._cc_pending = False
+        self._cc_ring_count = 0
 
     def handle_user_text(self, text: str) -> None:
         if self._busy:
@@ -117,21 +123,63 @@ class App:
             self._present_next_due()
 
     def _present_next_due(self) -> None:
-        if not self._due_queue:
+        if self._due_queue:
+            reminder = self._due_queue.pop(0)
+            self._alert_active = True
+            self._alert_kind = "reminder"
+            self.pet.show_alert(f"⏰ {reminder.text}")
+            self.notifier.toast("desk-buddy 提醒", reminder.text)
+            if self.config.sound_enabled:
+                self.notifier.play_sound()
             return
-        reminder = self._due_queue.pop(0)
-        self._alert_active = True
-        self.pet.show_alert(f"⏰ {reminder.text}")
-        self.notifier.toast("desk-buddy 提醒", reminder.text)
-        if self.config.sound_enabled:
-            self.notifier.play_sound()
+        # 没有更多定点提醒：让出卡片，若 Claude Code 仍在等确认则补弹 CC
+        self._alert_active = False
+        self._alert_kind = None
+        if self._cc_pending:
+            self._show_cc()
 
     def on_alert_dismissed(self) -> None:
-        # User closed the current alert -> show the next queued one, if any.
+        # 用户手动点「知道了」：清当前卡。定点提醒 -> 推进队列/回落 CC；
+        # CC -> 就地消除，不在仍 pending 时自动重弹（等下次状态翻转）。
+        prev = self._alert_kind
         self._alert_active = False
+        self._alert_kind = None
+        if prev == "cc":
+            self._cc_ring_count = 0
+            return
         self._present_next_due()
 
     def on_alert_nag(self) -> None:
-        # Re-sound every 30s while a reminder stays unacknowledged.
+        if self._alert_kind == "cc":
+            if self._cc_ring_count < CC_MAX_RINGS:
+                if self.config.sound_enabled:
+                    self.notifier.play_sound()
+                self._cc_ring_count += 1
+            return
+        # 定点提醒：每 30s 持续响，直到手动关闭
+        if self.config.sound_enabled:
+            self.notifier.play_sound()
+
+    def update_cc_pending(self, pending: bool) -> None:
+        """由 main 的轮询调用：pending = pending 目录是否非空。"""
+        if pending == self._cc_pending:
+            return
+        self._cc_pending = pending
+        if pending:
+            # 卡片空闲才弹；定点提醒占用时排队，待其关闭后回落
+            if self._alert_kind is None:
+                self._show_cc()
+        else:
+            # 已解决：只有当前显示的就是 CC 卡才自动收起
+            if self._alert_kind == "cc":
+                self.pet.hide_alert()
+                self._alert_kind = None
+                self._cc_ring_count = 0
+
+    def _show_cc(self) -> None:
+        self._alert_kind = "cc"
+        self._cc_ring_count = 1
+        self.pet.show_alert(CC_ALERT_TEXT, kind="cc")
+        self.notifier.toast("desk-buddy", "Claude Code 在等你确认")
         if self.config.sound_enabled:
             self.notifier.play_sound()
