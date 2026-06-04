@@ -22,7 +22,16 @@ written to the database.
     .venv\Scripts\python.exe -m pip install pyinstaller
     .venv\Scripts\pyinstaller.exe desk_buddy.spec
 
-The exe lands in `dist\desk-buddy.exe`.
+The exe lands in `dist\desk-buddy.exe`. It's a single self-contained file —
+copy it to any Windows machine and double-click; no Python install needed.
+The build bundles the frog animation, the default reminder sound
+(`guagua.mp3`), and the QtMultimedia + FFmpeg backend that plays it, so sound
+works out of the box. (`desk_buddy.spec` builds from `launch.py`, which imports
+the `desk_buddy` package properly — running `main.py` directly as the entry
+script would break its relative imports.)
+
+First launch still prompts for the API config; each machine keeps its own
+`config.json` / `reminders.db` under `%APPDATA%\desk-buddy\`.
 
 ## Usage
 
