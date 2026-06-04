@@ -261,13 +261,23 @@ class PetWidget(QWidget):
         self._input.setFocus()
         self._apply_roaming()  # pause roaming while the user types
 
-    def show_alert(self, text: str) -> None:
-        """Show a persistent reminder alert; stays until the user clicks 知道了."""
+    def show_alert(self, text: str, kind: str = "reminder") -> None:
+        """Show a persistent alert card; stays until dismissed.
+
+        kind: "reminder" (定点提醒) 或 "cc" (Claude Code 等确认)。当前用于
+        归属判定，预留样式区分；图标已包含在调用方传入的 text 里。
+        """
+        self._alert_kind = kind
         self._alert_label.setText(text)
         self._alert.adjustSize()
         self._position_alert()
         self._alert.show()
         self._alert_nag_timer.start()
+
+    def hide_alert(self) -> None:
+        """Programmatically dismiss the alert card (no alert_dismissed signal)."""
+        self._alert_nag_timer.stop()
+        self._alert.hide()
 
     def request_settings(self) -> None:
         """Ask the controller to open the settings dialog."""
