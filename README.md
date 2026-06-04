@@ -35,6 +35,15 @@ Click the pet, type things like:
 Reminders fire only while the app is running; on startup it catches up any that
 came due while it was closed.
 
+## 提醒声音
+
+- **默认**：内置咕咕声（`src/desk_buddy/assets/guagua.mp3`，随包发布，开箱即用，
+  无需配置）。
+- **换成自己的**：右键宠物 →「设置」→「提示音」填 mp3/wav 路径（或点「浏览…」
+  选文件），留空即用内置默认音。优先级：自定义文件 > 内置咕咕 > 系统叮声。
+- **静音**：在设置里取消勾选「提醒时播放声音」。
+- 提醒只用桌宠自己的气泡/卡片提示，不再弹 Windows 系统横幅通知。
+
 ## 与 Claude Code 联动（权限确认提醒）
 
 让 Claude Code 需要你批准某个操作时，桌宠青蛙弹出提醒把你喊回来；你在终端
