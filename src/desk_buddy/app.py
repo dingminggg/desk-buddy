@@ -49,6 +49,7 @@ class App:
         self._alert_active = False
         self._alert_kind = None  # None | "reminder" | "cc"
         self._cc_pending = False
+        self._cc_names: tuple[str, ...] = ()  # 当前在等确认的会话显示名（去重排序）
         self._cc_ring_count = 0
 
     def handle_user_text(self, text: str) -> None:
@@ -161,15 +162,22 @@ class App:
         if self.config.sound_enabled:
             self.notifier.play_sound(self.config.sound_file)
 
-    def update_cc_pending(self, pending: bool) -> None:
-        """由 main 的轮询调用：pending = pending 目录是否非空。"""
-        if pending == self._cc_pending:
+    def update_cc_pending(self, pending: dict) -> None:
+        """由 main 的轮询调用：pending = {session_id: 显示名}（read_pending 的结果）。"""
+        names = tuple(sorted(set(pending.values())))
+        active = bool(pending)
+        if active == self._cc_pending and names == self._cc_names:
             return
-        self._cc_pending = pending
-        if pending:
-            # 卡片空闲才弹；定点提醒占用时排队，待其关闭后回落
+        self._cc_pending = active
+        self._cc_names = names
+        if active:
             if self._alert_kind is None:
+                # 卡片空闲：弹 CC
                 self._show_cc()
+            elif self._alert_kind == "cc":
+                # 已在显示 CC：会话集合变了，仅刷新文字；保留响铃计数（不从头重响）
+                self.pet.show_alert(self._cc_alert_text(), kind="cc")
+            # _alert_kind == "reminder"：定点提醒占用，待其关闭后 _present_next_due 回落
         else:
             # 已解决：只有当前显示的就是 CC 卡才自动收起
             if self._alert_kind == "cc":
@@ -177,9 +185,16 @@ class App:
                 self._alert_kind = None
                 self._cc_ring_count = 0
 
+    def _cc_alert_text(self) -> str:
+        names = self._cc_names
+        if len(names) <= 1:
+            only = names[0] if names else "Claude Code"
+            return f"🤖 {only} 在等你确认"
+        return f"🤖 {len(names)} 个会话在等你确认：" + "、".join(names)
+
     def _show_cc(self) -> None:
         self._alert_kind = "cc"
         self._cc_ring_count = 1
-        self.pet.show_alert(CC_ALERT_TEXT, kind="cc")
+        self.pet.show_alert(self._cc_alert_text(), kind="cc")
         if self.config.sound_enabled:
             self.notifier.play_sound(self.config.sound_file)

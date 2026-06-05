@@ -131,7 +131,7 @@ def main() -> int:
     cc_signals.prune_stale()
     cc_timer = QTimer()
     cc_timer.timeout.connect(
-        lambda: controller.update_cc_pending(bool(cc_signals.read_pending()))
+        lambda: controller.update_cc_pending(cc_signals.read_pending())
     )
     cc_timer.start(1000)
 

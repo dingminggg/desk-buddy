@@ -17,8 +17,9 @@ from desk_buddy import cc_signals
 def handle(payload: dict) -> None:
     session_id = payload.get("session_id")
     message = payload.get("message", "") or ""
+    cwd = payload.get("cwd", "") or ""
     if session_id and "permission" in message.lower():
-        cc_signals.write_pending(session_id, message)
+        cc_signals.write_pending(session_id, message, cwd)
 
 
 def main() -> int:

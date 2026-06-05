@@ -249,34 +249,64 @@ def test_async_generic_error_no_draft(store):
     assert app.pet.said[-1] == "出了点小问题，稍后再说～"
 
 
+# A single fallback-named session reproduces the legacy CC_ALERT_TEXT.
+_ONE = {"s1": "Claude Code"}
+
+
 def test_cc_pending_shows_alert_and_rings_once(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)
+    app.update_cc_pending(_ONE)
     assert app.pet.alerts[-1] == CC_ALERT_TEXT
     assert app.pet.alert_kinds[-1] == "cc"
     assert app.notifier.sounds == 1
     assert app._alert_kind == "cc"
 
 
+def test_cc_single_session_shows_project_name(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending({"s1": "desk-buddy"})
+    assert app.pet.alerts[-1] == "🤖 desk-buddy 在等你确认"
+
+
+def test_cc_multiple_sessions_show_count_and_sorted_names(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending({"a": "desk-buddy", "b": "browser-harness"})
+    assert app.pet.alerts[-1] == "🤖 2 个会话在等你确认：browser-harness、desk-buddy"
+
+
+def test_cc_new_session_refreshes_text_without_resetting_rings(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.update_cc_pending({"a": "desk-buddy"})   # show, ring 1 (sound 1)
+    app.on_alert_nag()                            # ring 2 (sound 2)
+    app.on_alert_nag()                            # ring 3 (sound 3)
+    before = app.notifier.sounds
+    app.update_cc_pending({"a": "desk-buddy", "b": "browser-harness"})
+    assert app.pet.alerts[-1] == "🤖 2 个会话在等你确认：browser-harness、desk-buddy"
+    assert app._alert_kind == "cc"
+    assert app.notifier.sounds == before          # refresh is silent
+    app.on_alert_nag()                            # still capped -> silent
+    assert app.notifier.sounds == before
+
+
 def test_cc_resolved_hides_alert(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)
-    app.update_cc_pending(False)
+    app.update_cc_pending(_ONE)
+    app.update_cc_pending({})
     assert app.pet.hidden == 1
     assert app._alert_kind is None
 
 
 def test_cc_pending_idempotent_no_double_show(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)
-    app.update_cc_pending(True)  # poll fires again, same state
+    app.update_cc_pending(_ONE)
+    app.update_cc_pending(dict(_ONE))  # poll fires again, same state
     assert app.pet.alerts.count(CC_ALERT_TEXT) == 1
     assert app.notifier.sounds == 1
 
 
 def test_cc_nag_caps_at_three_rings(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)   # ring 1
+    app.update_cc_pending(_ONE)   # ring 1
     app.on_alert_nag()            # ring 2
     app.on_alert_nag()            # ring 3
     app.on_alert_nag()            # capped, silent
@@ -286,7 +316,7 @@ def test_cc_nag_caps_at_three_rings(store):
 def test_reminder_priority_blocks_cc_until_dismissed(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
     app.handle_reminder_due(_mk("会议"))  # reminder occupies the card
-    app.update_cc_pending(True)           # cc pending, must NOT show yet
+    app.update_cc_pending(_ONE)           # cc pending, must NOT show yet
     assert app._alert_kind == "reminder"
     assert CC_ALERT_TEXT not in app.pet.alerts
     app.on_alert_dismissed()              # reminder closed -> cc fills the slot
@@ -296,7 +326,7 @@ def test_reminder_priority_blocks_cc_until_dismissed(store):
 
 def test_reminder_preempts_onscreen_cc(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)           # cc showing
+    app.update_cc_pending(_ONE)           # cc showing
     app.handle_reminder_due(_mk("会议"))  # reminder preempts the card
     assert app._alert_kind == "reminder"
     assert app.pet.alerts[-1] == "⏰ 会议"
@@ -307,7 +337,7 @@ def test_reminder_preempts_onscreen_cc(store):
 
 def test_cc_manual_dismiss_does_not_reshow(store):
     app = _app(store, StubBrain(), Config(sound_enabled=True))
-    app.update_cc_pending(True)
+    app.update_cc_pending(_ONE)
     app.on_alert_dismissed()              # user clicked 知道了 on the cc card
     assert app._alert_kind is None
     assert app.pet.alerts.count(CC_ALERT_TEXT) == 1

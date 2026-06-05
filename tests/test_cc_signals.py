@@ -17,17 +17,34 @@ def pending(tmp_path, monkeypatch):
 
 def test_write_then_read_roundtrip(pending):
     cc_signals.write_pending("sess-1", "needs your permission to use Bash")
-    assert cc_signals.read_pending() == {"sess-1"}
+    assert cc_signals.read_pending() == {"sess-1": "Claude Code"}
     data = json.loads((pending / "sess-1.json").read_text("utf-8"))
     assert data["session_id"] == "sess-1"
     assert "permission" in data["message"]
+
+
+def test_read_derives_name_from_cwd_basename(pending):
+    cc_signals.write_pending("s", "msg", cwd="/home/me/projects/desk-buddy")
+    assert cc_signals.read_pending() == {"s": "desk-buddy"}
+
+
+def test_read_handles_windows_cwd_separators(pending):
+    cc_signals.write_pending("s", "msg", cwd=r"C:\Users\me\browser-harness")
+    assert cc_signals.read_pending() == {"s": "browser-harness"}
+
+
+def test_old_file_without_cwd_falls_back_to_claude_code(pending):
+    pending.mkdir(parents=True, exist_ok=True)
+    (pending / "old.json").write_text(
+        json.dumps({"session_id": "old", "message": "m"}), encoding="utf-8")
+    assert cc_signals.read_pending() == {"old": "Claude Code"}
 
 
 def test_clear_removes_only_that_session(pending):
     cc_signals.write_pending("a")
     cc_signals.write_pending("b")
     cc_signals.clear_pending("a")
-    assert cc_signals.read_pending() == {"b"}
+    assert cc_signals.read_pending() == {"b": "Claude Code"}
 
 
 def test_clear_missing_is_silent(pending):
@@ -35,14 +52,14 @@ def test_clear_missing_is_silent(pending):
 
 
 def test_read_missing_dir_is_empty(pending):
-    assert cc_signals.read_pending() == set()
+    assert cc_signals.read_pending() == {}
 
 
 def test_read_tolerates_corrupt_file(pending):
     pending.mkdir(parents=True, exist_ok=True)
     (pending / "broken.json").write_text("{ not json", encoding="utf-8")
     cc_signals.write_pending("good")
-    assert cc_signals.read_pending() == {"good"}
+    assert cc_signals.read_pending() == {"good": "Claude Code"}
 
 
 def test_safe_name_filters_illegal_chars(pending):
@@ -59,4 +76,4 @@ def test_prune_stale_drops_old_keeps_fresh(pending):
     past = time.time() - 7200
     os.utime(old, (past, past))
     cc_signals.prune_stale(max_age_seconds=600)
-    assert cc_signals.read_pending() == {"fresh"}
+    assert cc_signals.read_pending() == {"fresh": "Claude Code"}

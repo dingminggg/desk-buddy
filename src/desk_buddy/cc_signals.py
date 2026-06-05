@@ -29,13 +29,23 @@ def _safe_name(session_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", session_id)
 
 
-def write_pending(session_id: str, message: str = "") -> None:
+def _display_name(cwd: str) -> str:
+    """会话的人类可读名：取 cwd 的最后一段目录名（兼容 / 与 \\ 分隔），
+    拿不到则回退 'Claude Code'。"""
+    if not cwd:
+        return "Claude Code"
+    base = re.split(r"[\\/]", cwd.rstrip("\\/"))[-1]
+    return base or "Claude Code"
+
+
+def write_pending(session_id: str, message: str = "", cwd: str = "") -> None:
     d = pending_dir()
     d.mkdir(parents=True, exist_ok=True)
     target = d / f"{_safe_name(session_id)}.json"
     payload = {
         "session_id": session_id,
         "message": message,
+        "cwd": cwd,
         "at": datetime.now(timezone.utc).isoformat(),
     }
     fd, tmp_path = tempfile.mkstemp(prefix=".cc-", suffix=".json", dir=str(d))
@@ -59,11 +69,13 @@ def clear_pending(session_id: str) -> None:
         pass
 
 
-def read_pending() -> set[str]:
+def read_pending() -> dict[str, str]:
+    """返回 {session_id: 显示名}。显示名取自各会话的 cwd 目录名（见
+    _display_name），旧文件无 cwd 时回退 'Claude Code'。"""
     d = pending_dir()
     if not d.exists():
-        return set()
-    out: set[str] = set()
+        return {}
+    out: dict[str, str] = {}
     for f in d.glob("*.json"):
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
@@ -71,7 +83,7 @@ def read_pending() -> set[str]:
             continue
         sid = data.get("session_id") if isinstance(data, dict) else None
         if sid:
-            out.add(sid)
+            out[sid] = _display_name(data.get("cwd", "") or "")
     return out
 
 

@@ -66,5 +66,10 @@ came due while it was closed.
 3. 重启 Claude Code 使 hooks 生效。
 4. 保持 desk-buddy 运行即可。仅在「权限确认」时提醒；铃声最多响 3 次。
 
+提醒卡片会显示是哪个会话在等确认——取该会话工作目录的项目名，例如
+`🤖 desk-buddy 在等你确认`；多个会话同时等确认时合并显示，例如
+`🤖 2 个会话在等你确认：browser-harness、desk-buddy`。多开 Claude Code 时一眼
+就知道该回哪个窗口。（旧版 Claude Code 不传 `cwd` 时回退显示 `Claude Code`。）
+
 信号文件位于 `~/.claude/data/desk-buddy/pending/`，按会话分文件，支持同时开多个
 Claude Code 会话。桌宠未运行时 hook 静默退出，不影响 Claude Code。
