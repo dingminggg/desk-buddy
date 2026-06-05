@@ -127,11 +127,11 @@ def main() -> int:
     timer.timeout.connect(lambda: scheduler.tick(datetime.now()))
     timer.start(TICK_INTERVAL_MS)
 
-    # Claude Code「等你确认」轮询：启动清掉陈旧信号，再每秒扫一次
-    cc_signals.prune_stale()
+    # Claude Code「等你确认」轮询：每秒先清掉陈旧孤儿信号，再扫一次。
+    # 每轮都 prune，长时间运行也能清掉没触发 clear hook 的残留（不只启动清一次）。
     cc_timer = QTimer()
     cc_timer.timeout.connect(
-        lambda: controller.update_cc_pending(cc_signals.read_pending())
+        lambda: controller.update_cc_pending(cc_signals.poll_pending())
     )
     cc_timer.start(1000)
 

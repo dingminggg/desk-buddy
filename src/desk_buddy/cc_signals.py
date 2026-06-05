@@ -87,6 +87,17 @@ def read_pending() -> dict[str, str]:
     return out
 
 
+def poll_pending(max_age_seconds: int = 600) -> dict[str, str]:
+    """轮询用：先清掉陈旧孤儿文件，再返回当前 {session_id: 显示名}。
+
+    会话被关掉/杀掉而没触发 clear hook 时会留下孤儿 pending 文件。只在启动时
+    prune 一次不够——桌宠长时间挂着时启动后才出现的孤儿会一直被算进会话数。
+    让每次轮询都先 prune，孤儿最多 max_age_seconds 后自动消失。
+    """
+    prune_stale(max_age_seconds)
+    return read_pending()
+
+
 def prune_stale(max_age_seconds: int = 600) -> None:
     d = pending_dir()
     if not d.exists():

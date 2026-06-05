@@ -69,6 +69,18 @@ def test_safe_name_filters_illegal_chars(pending):
     assert files[0].name == "a_b_c_d.json"
 
 
+def test_poll_pending_prunes_stale_then_reads(pending):
+    # 模拟轮询：长时间运行时遇到没触发 clear hook 的孤儿文件应被清掉，
+    # 不再被算进会话数（启动时清一次不够）。
+    cc_signals.write_pending("fresh", "m", cwd="/p/fad-backend")
+    cc_signals.write_pending("stale", "m", cwd="/p/abandoned")
+    stale = pending / "stale.json"
+    past = time.time() - 7200
+    os.utime(stale, (past, past))
+    assert cc_signals.poll_pending(max_age_seconds=600) == {"fresh": "fad-backend"}
+    assert not stale.exists()
+
+
 def test_prune_stale_drops_old_keeps_fresh(pending):
     cc_signals.write_pending("old")
     cc_signals.write_pending("fresh")
