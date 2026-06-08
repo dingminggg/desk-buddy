@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime
 
-from . import cc_signals
+from . import __version__, cc_signals
 from .app import App
 from .brain import Brain
 from .config import Config, default_config_path, load_config, save_config
@@ -24,7 +24,7 @@ def _run_setup_dialog(config: Config) -> bool:
     )
 
     dialog = QDialog()
-    dialog.setWindowTitle("desk-buddy 设置")
+    dialog.setWindowTitle(f"desk-buddy 设置 v{__version__}")
     form = QFormLayout(dialog)
     base = QLineEdit(config.base_url)
     base.setPlaceholderText("https://api.openai.com/v1")
