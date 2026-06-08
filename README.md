@@ -41,6 +41,11 @@ Click the pet, type things like:
 - 开会那个做完了
 - 取消开会那个
 
+不是提醒的话，桌宠会直接回答你（翻译、简单问答）——结果显示在一张答案卡上，
+点 ✕ 才关闭。例如：
+- 把“你好”翻译成英文
+- 法国的首都是哪
+
 Reminders fire only while the app is running; on startup it catches up any that
 came due while it was closed.
 

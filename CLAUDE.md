@@ -7,9 +7,9 @@ no linter; `pytest` is the only check. Python 3.11+.
 
 ## Architecture
 
-A PySide6 desktop pet (a frog) that turns plain-language input into reminders,
-plus a file-signal bridge that pulls the user back when Claude Code needs
-permission confirmation.
+A PySide6 desktop pet (a frog) that turns plain-language input into reminders
+(and answers translation / simple Q&A via a `chat` intent), plus a file-signal
+bridge that pulls the user back when Claude Code needs permission confirmation.
 
 **`App` (`app.py`) is the central controller.** It takes all collaborators by
 constructor injection — `config, store, brain, pet, notifier, runner` — with
@@ -34,8 +34,10 @@ boundary: `QtRunner` runs slow callables (the LLM) on a worker thread and
 marshals the result back to the UI thread; `SyncRunner` runs inline for tests.
 
 **Brain + LLM (`brain.py`, `llm/`):** `Brain.parse` asks an `LLMProvider` for a
-strict `Intent` JSON (`add|query|complete|cancel|clarify`), retries once on bad
-JSON, then falls back to CLARIFY. Providers sit behind the `LLMProvider` ABC via
+strict `Intent` JSON (`add|query|complete|cancel|chat|clarify`), retries once on
+bad JSON, then falls back to CLARIFY. `chat` (translation / Q&A) carries the
+answer in `text`; `App` routes it to `pet.show_answer(...)` — a persistent
+answer card independent of the reminder/CC alert card. Providers sit behind the `LLMProvider` ABC via
 the `build_provider` factory. An `LLMError` makes `App` stash the raw text as a
 draft instead of losing it.
 
