@@ -16,7 +16,6 @@ class FakePet:
         self.said = []
         self.alerts = []
         self.alert_kinds = []
-        self.answers = []
         self.hidden = 0
         self.state = "idle"
 
@@ -32,9 +31,6 @@ class FakePet:
 
     def hide_alert(self):
         self.hidden += 1
-
-    def show_answer(self, text):
-        self.answers.append(text)
 
 
 class FakeNotifier:
@@ -354,13 +350,15 @@ def test_configured_sound_file_is_passed_to_notifier(store):
     assert app.notifier.sound_files[-1] == "C:/snd/guagua.mp3"
 
 
-def test_chat_intent_shows_answer_card(store):
+def test_chat_shows_on_shared_card_silently(store):
     brain = StubBrain(Intent(action=IntentAction.CHAT, text="Bonjour"))
-    app = _app(store, brain)
+    app = _app(store, brain, Config(sound_enabled=True))
     app.handle_user_text("把你好翻译成法语")
-    assert app.pet.answers[-1] == "Bonjour"
-    # chat 不应碰提醒/CC 卡，也不入库
-    assert app._alert_kind is None
+    # 答案用共用告警卡显示，kind=chat，不响铃，也不入库
+    assert app.pet.alerts[-1] == "Bonjour"
+    assert app.pet.alert_kinds[-1] == "chat"
+    assert app._alert_kind == "chat"
+    assert app.notifier.sounds == 0
     assert store.list_active() == []
 
 
@@ -368,4 +366,46 @@ def test_chat_empty_text_has_fallback(store):
     brain = StubBrain(Intent(action=IntentAction.CHAT, text=None))
     app = _app(store, brain)
     app.handle_user_text("???")
-    assert app.pet.answers[-1]  # 非空兜底
+    assert app.pet.alerts[-1]  # 非空兜底
+
+
+def test_chat_does_not_ring_on_nag(store):
+    brain = StubBrain(Intent(action=IntentAction.CHAT, text="hi"))
+    app = _app(store, brain, Config(sound_enabled=True))
+    app.handle_user_text("问个问题")
+    app.on_alert_nag()
+    assert app.notifier.sounds == 0
+
+
+def test_due_reminder_queues_behind_chat_then_shows_on_dismiss(store):
+    brain = StubBrain(Intent(action=IntentAction.CHAT, text="答案"))
+    app = _app(store, brain, Config(sound_enabled=True))
+    app.handle_user_text("翻译点东西")          # chat 占用卡片
+    app.handle_reminder_due(_mk("喝水"))         # 提醒到点 -> 排队，不抢占
+    assert app._alert_kind == "chat"
+    assert app.pet.alerts[-1] == "答案"
+    app.on_alert_dismissed()                     # 关掉答案 -> 弹出排队的提醒
+    assert app._alert_kind == "reminder"
+    assert app.pet.alerts[-1] == "⏰ 喝水"
+
+
+def test_chat_preempts_onscreen_reminder_which_returns_after(store):
+    app = _app(store, StubBrain(), Config(sound_enabled=True))
+    app.handle_reminder_due(_mk("开会"))         # 提醒先在显示
+    assert app._alert_kind == "reminder"
+    app._do_chat(Intent(action=IntentAction.CHAT, text="答案"))  # 提问 -> 答案接管
+    assert app._alert_kind == "chat"
+    assert app.pet.alerts[-1] == "答案"
+    app.on_alert_dismissed()                     # 关答案 -> 被抢占的提醒回来
+    assert app._alert_kind == "reminder"
+    assert app.pet.alerts[-1] == "⏰ 开会"
+
+
+def test_chat_dismiss_falls_back_to_pending_cc(store):
+    brain = StubBrain(Intent(action=IntentAction.CHAT, text="答案"))
+    app = _app(store, brain, Config(sound_enabled=True))
+    app.update_cc_pending(_ONE)                  # CC 等确认
+    app.handle_user_text("问个问题")             # 答案接管卡片
+    assert app._alert_kind == "chat"
+    app.on_alert_dismissed()                     # 关答案 -> 回落到 CC
+    assert app._alert_kind == "cc"

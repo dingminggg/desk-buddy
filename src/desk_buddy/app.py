@@ -48,7 +48,8 @@ class App:
         # True only while a *reminder* owns the card. CC alerts intentionally
         # leave this False so a due reminder preempts an on-screen CC alert.
         self._alert_active = False
-        self._alert_kind = None  # None | "reminder" | "cc"
+        self._alert_kind = None  # None | "reminder" | "cc" | "chat"
+        self._current_reminder = None  # 当前占用卡片的定点提醒（供 chat 抢占时回退）
         self._cc_pending = False
         self._cc_names: tuple[str, ...] = ()  # 当前在等确认的会话显示名（去重排序）
         self._cc_ring_count = 0
@@ -123,7 +124,15 @@ class App:
         self.pet.say(f"「{matches[0].text}」已取消～")
 
     def _do_chat(self, intent) -> None:
-        self.pet.show_answer(intent.text or "我好像没什么可说的～")
+        # 答案与提醒/CC 共用同一张卡：当成"一条手动关、不响铃的临时提醒"。
+        text = intent.text or "我好像没什么可说的～"
+        # 若此刻正显示定点提醒，把它放回队首，关掉答案后会重新弹出（不丢提醒）。
+        if self._alert_kind == "reminder" and self._current_reminder is not None:
+            self._due_queue.insert(0, self._current_reminder)
+            self._current_reminder = None
+        self._alert_kind = "chat"
+        self._alert_active = True  # 占用卡片：新到点的提醒排队，等答案关闭再弹
+        self.pet.show_alert(text, kind="chat")  # 不响铃、不唠叨
 
     def handle_reminder_due(self, reminder: Reminder) -> None:
         # Queue the due reminder; show it now if nothing is on screen.
@@ -136,6 +145,7 @@ class App:
             reminder = self._due_queue.pop(0)
             self._alert_active = True
             self._alert_kind = "reminder"
+            self._current_reminder = reminder
             self.pet.show_alert(f"⏰ {reminder.text}")
             if self.config.sound_enabled:
                 self.notifier.play_sound(self.config.sound_file)
@@ -143,6 +153,7 @@ class App:
         # 没有更多定点提醒：让出卡片，若 Claude Code 仍在等确认则补弹 CC
         self._alert_active = False
         self._alert_kind = None
+        self._current_reminder = None
         if self._cc_pending:
             self._show_cc()
 
@@ -158,6 +169,8 @@ class App:
         self._present_next_due()
 
     def on_alert_nag(self) -> None:
+        if self._alert_kind == "chat":
+            return  # 答案不响铃
         if self._alert_kind == "cc":
             if self._cc_ring_count < CC_MAX_RINGS:
                 if self.config.sound_enabled:

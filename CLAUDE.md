@@ -36,8 +36,10 @@ marshals the result back to the UI thread; `SyncRunner` runs inline for tests.
 **Brain + LLM (`brain.py`, `llm/`):** `Brain.parse` asks an `LLMProvider` for a
 strict `Intent` JSON (`add|query|complete|cancel|chat|clarify`), retries once on
 bad JSON, then falls back to CLARIFY. `chat` (translation / Q&A) carries the
-answer in `text`; `App` routes it to `pet.show_answer(...)` — a persistent
-answer card independent of the reminder/CC alert card. Providers sit behind the `LLMProvider` ABC via
+answer in `text`; `App` shows it on the shared alert card via
+`pet.show_alert(text, kind="chat")` — a manually-closed, silent card that joins
+the reminder/CC arbitration (occupies the card, queues due reminders behind it,
+requeues a preempted reminder, never rings). Providers sit behind the `LLMProvider` ABC via
 the `build_provider` factory. An `LLMError` makes `App` stash the raw text as a
 draft instead of losing it.
 
