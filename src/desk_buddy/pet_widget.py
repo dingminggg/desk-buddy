@@ -175,6 +175,53 @@ class PetWidget(QWidget):
         alert_card.setGraphicsEffect(alert_shadow)
         self._alert.hide()
 
+        # Persistent answer card (translation / Q&A). Manual close only,
+        # no auto-hide, no sound. Deliberately separate from the reminder/CC
+        # alert card so it never touches that arbitration. Shown BELOW the pet
+        # to avoid overlapping the alert card (which sits above).
+        self._answer = QWidget(
+            None,
+            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint,
+        )
+        self._answer.setAttribute(Qt.WA_TranslucentBackground)
+        self._answer.setStyleSheet(
+            "#answerCard { background:#ffffff; border:1px solid #cfe3d0;"
+            " border-radius:14px; }"
+            " QLabel { color:#3a3a3a; font-size:15px; }"
+            " #ansCloseBtn { border:none; background:transparent; color:#b7ae98;"
+            " font-size:13px; border-radius:11px; }"
+            " #ansCloseBtn:hover { background:#f3ecda; color:#e2685f; }")
+        answer_outer = QVBoxLayout(self._answer)
+        answer_outer.setContentsMargins(14, 12, 14, 14)
+        answer_outer.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        answer_card = QFrame()
+        answer_card.setObjectName("answerCard")
+        answer_box = QVBoxLayout(answer_card)
+        answer_box.setContentsMargins(10, 7, 10, 7)
+        answer_box.setSpacing(6)
+        ans_top = QHBoxLayout()
+        ans_top.setContentsMargins(0, 0, 0, 0)
+        self._answer_close_btn = QPushButton("✕")
+        self._answer_close_btn.setObjectName("ansCloseBtn")
+        self._answer_close_btn.setFixedSize(22, 22)
+        self._answer_close_btn.setCursor(Qt.PointingHandCursor)
+        self._answer_close_btn.clicked.connect(self.hide_answer)
+        ans_top.addStretch(1)
+        ans_top.addWidget(self._answer_close_btn)
+        self._answer_label = QLabel()
+        self._answer_label.setWordWrap(True)
+        self._answer_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        answer_box.addLayout(ans_top)
+        answer_box.addWidget(self._answer_label)
+        answer_outer.addWidget(answer_card)
+        answer_shadow = QGraphicsDropShadowEffect(self._answer)
+        answer_shadow.setBlurRadius(20)
+        answer_shadow.setXOffset(0)
+        answer_shadow.setYOffset(3)
+        answer_shadow.setColor(QColor(0, 0, 0, 80))
+        answer_card.setGraphicsEffect(answer_shadow)
+        self._answer.hide()
+
         # Re-sound timer for an unacknowledged reminder (no auto-hide).
         self._alert_nag_timer = QTimer(self)
         self._alert_nag_timer.setInterval(ALERT_NAG_MS)
@@ -288,6 +335,28 @@ class PetWidget(QWidget):
         self._alert_nag_timer.stop()
         self._alert.hide()
 
+    def show_answer(self, text: str) -> None:
+        """Show a persistent answer card (translation / Q&A). Manual close
+        only — no auto-hide, no sound. Independent of the alert card."""
+        self._answer_label.setText(text)
+        # 与 show_alert 同样的折行策略：按单行宽度定宽（上限 ALERT_TEXT_MAX_W），
+        # 再用 heightForWidth 固定折行后的高度，让卡片精确贴合内容。
+        natural = self._answer_label.fontMetrics().horizontalAdvance(text)
+        width = min(natural + 8, ALERT_TEXT_MAX_W)
+        self._answer_label.setFixedWidth(width)
+        self._answer_label.setFixedHeight(
+            self._answer_label.heightForWidth(width))
+        self._answer.adjustSize()
+        self._position_answer()
+        self._answer.show()
+
+    def hide_answer(self) -> None:
+        """Hide the answer card (local only; App holds no chat state)."""
+        self._answer.hide()
+
+    def answer_text(self) -> str:
+        return self._answer_label.text()
+
     def request_settings(self) -> None:
         """Ask the controller to open the settings dialog."""
         self.settings_requested.emit()
@@ -318,6 +387,13 @@ class PetWidget(QWidget):
         if y < 0:  # no room above -> tuck it against the pet's bottom instead
             y = pos.y() + PET_SIZE - ALERT_GAP_FUDGE
         self._alert.move(x, y)
+
+    def _position_answer(self) -> None:
+        # 宠物正下方、水平居中（告警卡在上方，二者错开不重叠）。
+        pos = self.pos()
+        x = pos.x() + PET_SIZE // 2 - self._answer.width() // 2
+        y = pos.y() + PET_SIZE - ALERT_GAP_FUDGE
+        self._answer.move(x, y)
 
     def _on_input_return(self) -> None:
         text = self._input.text().strip()

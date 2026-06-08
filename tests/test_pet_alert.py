@@ -36,3 +36,26 @@ def test_show_alert_defaults_to_reminder_kind(qapp):
     pet = PetWidget()
     pet.show_alert("⏰ 喝水")  # no kind kwarg -> still works
     assert not pet._alert.isHidden()
+
+
+def test_show_answer_visible_with_text(qapp):
+    pet = PetWidget()
+    pet.show_answer("Bonjour le monde")
+    assert not pet._answer.isHidden()
+    assert pet.answer_text() == "Bonjour le monde"
+
+
+def test_hide_answer_hides(qapp):
+    pet = PetWidget()
+    pet.show_answer("hi")
+    pet.hide_answer()
+    assert pet._answer.isHidden()
+
+
+def test_answer_card_independent_of_alert(qapp):
+    pet = PetWidget()
+    pet.show_alert("⏰ 喝水")
+    pet.show_answer("42")
+    # showing the answer must not affect the alert card or its nag timer
+    assert not pet._alert.isHidden()
+    assert not pet._answer.isHidden()
