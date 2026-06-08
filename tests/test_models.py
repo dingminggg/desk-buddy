@@ -24,3 +24,9 @@ def test_intent_time_optional():
     intent = Intent(action="query")
     assert intent.time is None
     assert intent.text is None
+
+
+def test_intent_action_has_chat():
+    from desk_buddy.models import IntentAction
+    assert IntentAction("chat") == IntentAction.CHAT
+    assert IntentAction.CHAT.value == "chat"
