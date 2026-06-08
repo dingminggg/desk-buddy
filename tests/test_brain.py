@@ -57,3 +57,16 @@ def test_falls_back_to_clarify_after_two_failures():
     assert intent.action == IntentAction.CLARIFY
     assert intent.text  # has a non-empty question
     assert len(p.calls) == 2
+
+
+def test_parses_chat_answer():
+    p = ScriptedProvider(['{"action": "chat", "text": "Bonjour"}'])
+    intent = Brain(p).parse('把"你好"翻译成法语', NOW)
+    assert intent.action == IntentAction.CHAT
+    assert intent.text == "Bonjour"
+
+
+def test_system_prompt_mentions_chat():
+    p = ScriptedProvider(['{"action": "chat", "text": "x"}'])
+    Brain(p).parse("法国的首都是哪", NOW)
+    assert "chat" in p.calls[0][0]
