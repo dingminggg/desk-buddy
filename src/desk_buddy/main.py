@@ -15,6 +15,24 @@ def needs_setup(config: Config) -> bool:
     return not config.is_configured
 
 
+def _apply_app_icon(app) -> None:
+    """设置窗口/任务栏图标为青蛙。通过 pythonw 启动时，任务栏默认显示 Python 图标——
+    在 Windows 上还需设一个独立的 AppUserModelID，任务栏才用我们的图标而非宿主的。
+    所有异常吞掉：没图标也不该挡住启动。"""
+    from pathlib import Path
+
+    from PySide6.QtGui import QIcon
+
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("desk-buddy")
+    except Exception:
+        pass
+    icon_path = Path(__file__).parent / "assets" / "icon.png"
+    if icon_path.is_file():
+        app.setWindowIcon(QIcon(str(icon_path)))
+
+
 def _run_setup_dialog(config: Config) -> bool:
     """Prompt for base_url / model / api_key / 提醒声音. Apply to `config` ONLY
     if the user confirms (clicks 保存). Returns True if the config was updated."""
@@ -83,6 +101,7 @@ def main() -> int:
     # The pet is the anchor window; closing the input bar or a dialog must not
     # quit the app. Only the right-click 退出 menu quits explicitly.
     app.setQuitOnLastWindowClosed(False)
+    _apply_app_icon(app)
 
     config_path = default_config_path()
     config = load_config(config_path)

@@ -9,6 +9,7 @@ a = Analysis(
     datas=[
         ("src/desk_buddy/assets/frog.gif", "desk_buddy/assets"),
         ("src/desk_buddy/assets/guagua.mp3", "desk_buddy/assets"),
+        ("src/desk_buddy/assets/icon.png", "desk_buddy/assets"),
     ],
     hiddenimports=["PySide6.QtMultimedia"],
     hookspath=[],
@@ -22,4 +23,5 @@ exe = EXE(
     name="desk-buddy",
     console=False,           # windowed app, no console
     onefile=True,
+    icon="src/desk_buddy/assets/icon.ico",
 )
