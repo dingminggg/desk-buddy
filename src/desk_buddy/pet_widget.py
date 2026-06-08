@@ -295,6 +295,8 @@ class PetWidget(QWidget):
                 self._position_input()
             if not self._alert.isHidden():
                 self._position_alert()
+            if not self._answer.isHidden():
+                self._position_answer()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
         was_click = self._drag_offset is not None and not self._moved
@@ -355,6 +357,7 @@ class PetWidget(QWidget):
         self._answer.hide()
 
     def answer_text(self) -> str:
+        """Current answer-card text (mainly for tests)."""
         return self._answer_label.text()
 
     def request_settings(self) -> None:
@@ -389,10 +392,16 @@ class PetWidget(QWidget):
         self._alert.move(x, y)
 
     def _position_answer(self) -> None:
-        # 宠物正下方、水平居中（告警卡在上方，二者错开不重叠）。
+        # 默认贴在宠物正下方、水平居中。告警卡正常在宠物上方，互不干涉；
+        # 但屏幕顶部无上方空间时告警卡会回落到宠物下方——此时按其实际几何
+        # 把答案卡放到告警卡下面，避免两卡重叠。
         pos = self.pos()
         x = pos.x() + PET_SIZE // 2 - self._answer.width() // 2
-        y = pos.y() + PET_SIZE - ALERT_GAP_FUDGE
+        y = pos.y() + PET_SIZE
+        if not self._alert.isHidden():
+            alert_bottom = self._alert.y() + self._alert.height()
+            if alert_bottom > y:
+                y = alert_bottom + 4
         self._answer.move(x, y)
 
     def _on_input_return(self) -> None:

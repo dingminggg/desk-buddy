@@ -59,3 +59,13 @@ def test_answer_card_independent_of_alert(qapp):
     # showing the answer must not affect the alert card or its nag timer
     assert not pet._alert.isHidden()
     assert not pet._answer.isHidden()
+
+
+def test_answer_card_drops_below_alert_when_no_room_above(qapp):
+    # 宠物贴屏顶时，告警卡回落到宠物下方；答案卡须放到告警卡下面，不重叠。
+    pet = PetWidget()
+    pet.move(0, 0)
+    pet.show_alert("⏰ 喝水")
+    pet.show_answer("一个比较长的答案文本用来撑开卡片")
+    alert_bottom = pet._alert.y() + pet._alert.height()
+    assert pet._answer.y() >= alert_bottom
