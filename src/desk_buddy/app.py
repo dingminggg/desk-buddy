@@ -31,7 +31,8 @@ class App:
     and Scheduler due events -> a persistent reminder alert (queued, one at a
     time, manually dismissed, nagged every 30s).
 
-    `pet` needs `say(text)`, `set_state(state)`, `show_alert(text)`.
+    `pet` needs `say(text)`, `set_state(state)`, `show_alert(text)`,
+    `show_answer(text)`.
     `notifier` needs `play_sound(sound_file="")`.
     """
 
@@ -75,6 +76,8 @@ class App:
             self._do_complete(intent)
         elif intent.action == IntentAction.CANCEL:
             self._do_cancel(intent)
+        elif intent.action == IntentAction.CHAT:
+            self._do_chat(intent)
         else:  # CLARIFY
             self.pet.say(intent.text or "能再说清楚一点吗？")
 
@@ -118,6 +121,9 @@ class App:
             return
         self.store.cancel(matches[0].id)
         self.pet.say(f"「{matches[0].text}」已取消～")
+
+    def _do_chat(self, intent) -> None:
+        self.pet.show_answer(intent.text or "我好像没什么可说的～")
 
     def handle_reminder_due(self, reminder: Reminder) -> None:
         # Queue the due reminder; show it now if nothing is on screen.

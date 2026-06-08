@@ -5,16 +5,18 @@ from pydantic import ValidationError
 from .llm.base import LLMProvider
 from .models import Intent, IntentAction
 
-SYSTEM_TEMPLATE = """你是桌面提醒助手的解析器。当前时间是 {now}（请据此把相对时间换算成绝对时间）。
+SYSTEM_TEMPLATE = """你是桌面助手的解析器。当前时间是 {now}（请据此把相对时间换算成绝对时间）。
 把用户的话解析为一个 JSON 对象，只输出 JSON，不要任何多余文字：
-{{"action": "<add|query|complete|cancel|clarify>", "time": "<ISO8601 本地时间或 null>", "text": "<字符串>"}}
+{{"action": "<add|query|complete|cancel|chat|clarify>", "time": "<ISO8601 本地时间或 null>", "text": "<字符串>"}}
 
 规则：
 - 用户要新建提醒 -> action=add，time 填绝对时间（如 2026-06-04T15:00:00），text 填事项内容。
 - 用户问有哪些提醒 -> action=query。
 - 用户说某事做完了 -> action=complete，text 填能匹配该提醒的关键词。
 - 用户要取消某提醒 -> action=cancel，text 填关键词。
-- 时间含糊说不清或意图不明 -> action=clarify，text 填你要反问用户的话。
+- 既不是提醒操作、但你能直接回答（让你翻译、问常识/简单问题、闲聊）-> action=chat，
+  text 填你给用户的直接答案或译文；简洁明了，适合在小卡片里读完。
+- 想记提醒但时间含糊，或完全听不懂、意图不明 -> action=clarify，text 填你要反问用户的话。
 只返回 JSON。"""
 
 CLARIFY_FALLBACK = "抱歉，我没太听懂，能换个说法再告诉我一次吗？"

@@ -30,6 +30,7 @@ class IntentAction(str, Enum):
     QUERY = "query"
     COMPLETE = "complete"
     CANCEL = "cancel"
+    CHAT = "chat"
     CLARIFY = "clarify"
 
 

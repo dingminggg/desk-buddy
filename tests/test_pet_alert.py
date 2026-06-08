@@ -36,3 +36,36 @@ def test_show_alert_defaults_to_reminder_kind(qapp):
     pet = PetWidget()
     pet.show_alert("⏰ 喝水")  # no kind kwarg -> still works
     assert not pet._alert.isHidden()
+
+
+def test_show_answer_visible_with_text(qapp):
+    pet = PetWidget()
+    pet.show_answer("Bonjour le monde")
+    assert not pet._answer.isHidden()
+    assert pet.answer_text() == "Bonjour le monde"
+
+
+def test_hide_answer_hides(qapp):
+    pet = PetWidget()
+    pet.show_answer("hi")
+    pet.hide_answer()
+    assert pet._answer.isHidden()
+
+
+def test_answer_card_independent_of_alert(qapp):
+    pet = PetWidget()
+    pet.show_alert("⏰ 喝水")
+    pet.show_answer("42")
+    # showing the answer must not affect the alert card or its nag timer
+    assert not pet._alert.isHidden()
+    assert not pet._answer.isHidden()
+
+
+def test_answer_card_drops_below_alert_when_no_room_above(qapp):
+    # 宠物贴屏顶时，告警卡回落到宠物下方；答案卡须放到告警卡下面，不重叠。
+    pet = PetWidget()
+    pet.move(0, 0)
+    pet.show_alert("⏰ 喝水")
+    pet.show_answer("一个比较长的答案文本用来撑开卡片")
+    alert_bottom = pet._alert.y() + pet._alert.height()
+    assert pet._answer.y() >= alert_bottom

@@ -16,6 +16,7 @@ class FakePet:
         self.said = []
         self.alerts = []
         self.alert_kinds = []
+        self.answers = []
         self.hidden = 0
         self.state = "idle"
 
@@ -31,6 +32,9 @@ class FakePet:
 
     def hide_alert(self):
         self.hidden += 1
+
+    def show_answer(self, text):
+        self.answers.append(text)
 
 
 class FakeNotifier:
@@ -348,3 +352,20 @@ def test_configured_sound_file_is_passed_to_notifier(store):
                Config(sound_enabled=True, sound_file="C:/snd/guagua.mp3"))
     app.handle_reminder_due(_mk("喝水"))
     assert app.notifier.sound_files[-1] == "C:/snd/guagua.mp3"
+
+
+def test_chat_intent_shows_answer_card(store):
+    brain = StubBrain(Intent(action=IntentAction.CHAT, text="Bonjour"))
+    app = _app(store, brain)
+    app.handle_user_text("把你好翻译成法语")
+    assert app.pet.answers[-1] == "Bonjour"
+    # chat 不应碰提醒/CC 卡，也不入库
+    assert app._alert_kind is None
+    assert store.list_active() == []
+
+
+def test_chat_empty_text_has_fallback(store):
+    brain = StubBrain(Intent(action=IntentAction.CHAT, text=None))
+    app = _app(store, brain)
+    app.handle_user_text("???")
+    assert app.pet.answers[-1]  # 非空兜底
