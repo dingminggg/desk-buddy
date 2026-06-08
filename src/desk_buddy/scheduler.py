@@ -5,7 +5,7 @@ from .models import Reminder, RepeatRule
 from .store import ReminderStore
 
 # Real-time tick interval used by the app's QTimer (milliseconds).
-TICK_INTERVAL_MS = 20_000
+TICK_INTERVAL_MS = 1_000
 
 
 class Scheduler:
