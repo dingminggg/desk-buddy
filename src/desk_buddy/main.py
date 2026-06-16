@@ -154,6 +154,17 @@ def main() -> int:
     )
     cc_timer.start(1000)
 
+    # 可选:同时拉起 Claude 驾驶舱(装了才拉,失败不影响桌宠)。
+    # 设环境变量 CLAUDE_COCKPIT_PY 指向 cockpit venv 的 python 即开启;没设就不拉。
+    try:
+        import os
+        cockpit_py = os.environ.get("CLAUDE_COCKPIT_PY")
+        if cockpit_py and os.path.exists(cockpit_py):
+            import subprocess
+            subprocess.Popen([cockpit_py, "-m", "claude_cockpit.main"])
+    except Exception:
+        pass
+
     pet.show()
     if needs_setup(config):
         pet.say("我还没连上大脑，点我设置一下吧～")
