@@ -154,19 +154,28 @@ def main() -> int:
     )
     cc_timer.start(1000)
 
-    # 可选:同时拉起 Claude 驾驶舱(装了才拉,失败不影响桌宠)。
-    # 设环境变量 CLAUDE_COCKPIT_PY 指向 cockpit venv 的 python 即开启;没设就不拉。
-    try:
+    # 拉起 Claude 驾驶舱。开机自启 + 右键菜单都用它。
+    # 设环境变量 CLAUDE_COCKPIT_PY 指向 cockpit venv 的 python 即可;没设则提示。
+    def launch_cockpit(show_hint: bool = False) -> None:
         import os
         cockpit_py = os.environ.get("CLAUDE_COCKPIT_PY")
-        if cockpit_py and os.path.exists(cockpit_py):
+        if not cockpit_py or not os.path.exists(cockpit_py):
+            if show_hint:
+                pet.say("还没配驾驶舱:设环境变量 CLAUDE_COCKPIT_PY 指向它的 pythonw 就行～")
+            return
+        try:
             import subprocess
             # 用 pythonw.exe 无窗运行:否则会留一个控制台黑框,关掉它会连带杀死 cockpit。
             pyw = cockpit_py.replace("python.exe", "pythonw.exe")
             exe = pyw if os.path.exists(pyw) else cockpit_py
             subprocess.Popen([exe, "-m", "claude_cockpit.main"])
-    except Exception:
-        pass
+            if show_hint:
+                pet.say("驾驶舱来啦～")
+        except Exception:
+            pass
+
+    pet.cockpit_requested.connect(lambda: launch_cockpit(show_hint=True))
+    launch_cockpit()                 # 开机自启(没配则静默跳过)
 
     pet.show()
     if needs_setup(config):

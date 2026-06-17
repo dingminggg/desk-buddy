@@ -49,6 +49,7 @@ class PetWidget(QWidget):
     clicked = Signal()
     settings_requested = Signal()
     quit_requested = Signal()
+    cockpit_requested = Signal()   # 右键「启动驾驶舱」
     alert_dismissed = Signal()
     alert_nag = Signal()
 
@@ -296,6 +297,7 @@ class PetWidget(QWidget):
     def _show_menu(self, global_pos) -> None:
         menu = QMenu(self)
         menu.addAction("设置").triggered.connect(self.request_settings)
+        menu.addAction("启动驾驶舱").triggered.connect(self.cockpit_requested.emit)
         menu.addAction("退出").triggered.connect(self.quit_requested.emit)
         menu.exec(global_pos)
 
