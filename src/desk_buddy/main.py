@@ -161,7 +161,10 @@ def main() -> int:
         cockpit_py = os.environ.get("CLAUDE_COCKPIT_PY")
         if cockpit_py and os.path.exists(cockpit_py):
             import subprocess
-            subprocess.Popen([cockpit_py, "-m", "claude_cockpit.main"])
+            # 用 pythonw.exe 无窗运行:否则会留一个控制台黑框,关掉它会连带杀死 cockpit。
+            pyw = cockpit_py.replace("python.exe", "pythonw.exe")
+            exe = pyw if os.path.exists(pyw) else cockpit_py
+            subprocess.Popen([exe, "-m", "claude_cockpit.main"])
     except Exception:
         pass
 
