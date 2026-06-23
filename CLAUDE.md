@@ -2,14 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-See `README.md` for setup, run, test, build, and hook-install commands. There is
+See `README.md` for setup, run, test, and build commands. There is
 no linter; `pytest` is the only check. Python 3.11+.
 
 ## Architecture
 
 A PySide6 desktop pet (a frog) that turns plain-language input into reminders
-(and answers translation / simple Q&A via a `chat` intent), plus a file-signal
-bridge that pulls the user back when Claude Code needs permission confirmation.
+(and answers translation / simple Q&A via a `chat` intent).
 
 **`App` (`app.py`) is the central controller.** It takes all collaborators by
 constructor injection — `config, store, brain, pet, notifier, runner` — with
@@ -18,15 +17,13 @@ with fakes and a `SyncRunner`, no Qt loop. Two flows meet here:
 
 1. **Input → reminder:** `PetWidget.user_said` → `handle_user_text` →
    `Brain.parse` (off-thread via the runner) → `ReminderStore` → `pet.say(...)`.
-2. **Due/CC → alert card:** `Scheduler` fires `handle_reminder_due`; the
-   per-second CC poll calls `update_cc_pending`. Both compete for one card.
+2. **Due → alert card:** `Scheduler` fires `handle_reminder_due` to show a due
+   reminder on the shared card.
 
 **The alert-card arbitration is the subtle part.** One card shows either a due
-reminder (`kind="reminder"`) or a Claude-Code prompt (`kind="cc"`); state is
-`_alert_kind`/`_alert_active`/`_due_queue`/`_cc_pending`. Reminders queue and
-dismiss one at a time and **preempt** an on-screen CC alert; CC re-fills only
-when the card goes idle. Change this carefully against `test_app.py` /
-`test_pet_alert.py`.
+reminder (`kind="reminder"`) or a chat answer (`kind="chat"`); state is
+`_alert_kind`/`_alert_active`/`_due_queue`. Reminders queue and dismiss one at a
+time. Change this carefully against `test_app.py` / `test_pet_alert.py`.
 
 **Keep Qt at the edges.** `App` and the pure modules never import Qt; it lives in
 `pet_widget.py`, `qt_runner.py`, `main.py`. The `runner` abstraction is the
@@ -38,7 +35,7 @@ strict `Intent` JSON (`add|query|complete|cancel|chat|clarify`), retries once on
 bad JSON, then falls back to CLARIFY. `chat` (translation / Q&A) carries the
 answer in `text`; `App` shows it on the shared alert card via
 `pet.show_alert(text, kind="chat")` — a manually-closed, silent card that joins
-the reminder/CC arbitration (occupies the card, queues due reminders behind it,
+the reminder arbitration (occupies the card, queues due reminders behind it,
 requeues a preempted reminder, never rings). Providers sit behind the `LLMProvider` ABC via
 the `build_provider` factory. An `LLMError` makes `App` stash the raw text as a
 draft instead of losing it.
@@ -53,12 +50,10 @@ closed.
 `%APPDATA%\desk-buddy\config.json`; the API key lives only there, never in the
 DB.
 
-**Claude Code bridge (`cc_signals.py`, `hooks/`, `install_hooks.py`):** decoupled
-through the filesystem. Each waiting session writes
-`~/.claude/data/desk-buddy/pending/<session_id>.json` (atomic). The
-`Notification` hook writes one only when the message mentions permission;
-`Stop`/`UserPromptSubmit` clear it; `main.py` polls every second. **Every hook
-swallows all exceptions and exits 0** — desk-buddy must never block Claude Code.
+**Claude Code permission alerts moved out.** desk-buddy no longer reads or writes
+Claude Code's permission signals — that's now claude-cockpit's job (it owns the
+hooks and the `~/.claude/data/claude-cockpit/pending/` channel). desk-buddy is a
+standalone reminder pet again.
 
 ## Gotchas
 
