@@ -58,23 +58,8 @@ came due while it was closed.
 - **静音**：在设置里取消勾选「提醒时播放声音」。
 - 提醒只用桌宠自己的气泡/卡片提示，不再弹 Windows 系统横幅通知。
 
-## 与 Claude Code 联动（权限确认提醒）
+## 与 Claude Code 联动
 
-让 Claude Code 需要你批准某个操作时，桌宠青蛙弹出提醒把你喊回来；你在终端
-答复、Claude 继续或本回合结束后，提醒自动收起。
-
-1. 先装好本包（开发模式）：`.venv\Scripts\python.exe -m pip install -e .`
-2. 注册 hooks：`.venv\Scripts\python.exe -m desk_buddy.install_hooks`
-   - 幂等地把三条 hook 写进 `~/.claude/settings.json`
-     （`Notification`/`Stop`/`UserPromptSubmit`），不影响你已有配置。
-   - 命令里写的是当前 venv 的 Python 绝对路径。
-3. 重启 Claude Code 使 hooks 生效。
-4. 保持 desk-buddy 运行即可。仅在「权限确认」时提醒；铃声最多响 3 次。
-
-提醒卡片会显示是哪个会话在等确认——取该会话工作目录的项目名，例如
-`🤖 desk-buddy 在等你确认`；多个会话同时等确认时合并显示，例如
-`🤖 2 个会话在等你确认：browser-harness、desk-buddy`。多开 Claude Code 时一眼
-就知道该回哪个窗口。（旧版 Claude Code 不传 `cwd` 时回退显示 `Claude Code`。）
-
-信号文件位于 `~/.claude/data/desk-buddy/pending/`，按会话分文件，支持同时开多个
-Claude Code 会话。桌宠未运行时 hook 静默退出，不影响 Claude Code。
+「权限确认提醒」已迁出本项目，改由 claude-cockpit(驾驶舱)自己的 hook 负责
+(它有独立的提示音/信封/托盘提醒)。desk-buddy 现在专注做提醒小助手,不再
+读写 Claude Code 的权限信号,也不再需要注册任何 hook。
