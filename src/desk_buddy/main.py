@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime
 
-from . import __version__, cc_signals
+from . import __version__
 from .app import App
 from .brain import Brain
 from .config import Config, default_config_path, load_config, save_config
@@ -146,13 +146,7 @@ def main() -> int:
     timer.timeout.connect(lambda: scheduler.tick(datetime.now()))
     timer.start(TICK_INTERVAL_MS)
 
-    # Claude Code「等你确认」轮询：每秒先清掉陈旧孤儿信号，再扫一次。
-    # 每轮都 prune，长时间运行也能清掉没触发 clear hook 的残留（不只启动清一次）。
-    cc_timer = QTimer()
-    cc_timer.timeout.connect(
-        lambda: controller.update_cc_pending(cc_signals.poll_pending())
-    )
-    cc_timer.start(1000)
+    # Claude Code「等你确认」提示已交给驾驶舱(claude-cockpit)处理,青蛙不再轮询/弹卡。
 
     # 拉起 Claude 驾驶舱。开机自启 + 右键菜单都用它。
     # 设环境变量 CLAUDE_COCKPIT_PY 指向 cockpit venv 的 python 即可;没设则提示。

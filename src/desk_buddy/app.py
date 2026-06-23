@@ -5,9 +5,6 @@ from .config import Config
 from .llm.base import LLMError
 from .models import IntentAction, Reminder
 
-CC_ALERT_TEXT = "🤖 Claude Code 在等你确认"
-CC_MAX_RINGS = 3
-
 
 def _fmt(dt: datetime) -> str:
     return dt.strftime("%m-%d %H:%M")
@@ -45,14 +42,9 @@ class App:
         self.runner = runner or SyncRunner()
         self._busy = False
         self._due_queue: list[Reminder] = []
-        # True only while a *reminder* owns the card. CC alerts intentionally
-        # leave this False so a due reminder preempts an on-screen CC alert.
-        self._alert_active = False
-        self._alert_kind = None  # None | "reminder" | "cc" | "chat"
+        self._alert_active = False  # True only while a *reminder* owns the card
+        self._alert_kind = None  # None | "reminder" | "chat"
         self._current_reminder = None  # 当前占用卡片的定点提醒（供 chat 抢占时回退）
-        self._cc_pending = False
-        self._cc_names: tuple[str, ...] = ()  # 当前在等确认的会话显示名（去重排序）
-        self._cc_ring_count = 0
 
     def handle_user_text(self, text: str) -> None:
         if self._busy:
@@ -150,70 +142,20 @@ class App:
             if self.config.sound_enabled:
                 self.notifier.play_sound(self.config.sound_file)
             return
-        # 没有更多定点提醒：让出卡片，若 Claude Code 仍在等确认则补弹 CC
+        # 没有更多定点提醒：让出卡片
         self._alert_active = False
         self._alert_kind = None
         self._current_reminder = None
-        if self._cc_pending:
-            self._show_cc()
 
     def on_alert_dismissed(self) -> None:
-        # 用户手动点「知道了」：清当前卡。定点提醒 -> 推进队列/回落 CC；
-        # CC -> 就地消除，不在仍 pending 时自动重弹（等下次状态翻转）。
-        prev = self._alert_kind
+        # 用户手动点「知道了」：清当前卡，推进定点提醒队列。
         self._alert_active = False
         self._alert_kind = None
-        if prev == "cc":
-            self._cc_ring_count = 0
-            return
         self._present_next_due()
 
     def on_alert_nag(self) -> None:
         if self._alert_kind == "chat":
             return  # 答案不响铃
-        if self._alert_kind == "cc":
-            if self._cc_ring_count < CC_MAX_RINGS:
-                if self.config.sound_enabled:
-                    self.notifier.play_sound(self.config.sound_file)
-                self._cc_ring_count += 1
-            return
         # 定点提醒：每 30s 持续响，直到手动关闭
-        if self.config.sound_enabled:
-            self.notifier.play_sound(self.config.sound_file)
-
-    def update_cc_pending(self, pending: dict) -> None:
-        """由 main 的轮询调用：pending = {session_id: 显示名}（read_pending 的结果）。"""
-        names = tuple(sorted(set(pending.values())))
-        active = bool(pending)
-        if active == self._cc_pending and names == self._cc_names:
-            return
-        self._cc_pending = active
-        self._cc_names = names
-        if active:
-            if self._alert_kind is None:
-                # 卡片空闲：弹 CC
-                self._show_cc()
-            elif self._alert_kind == "cc":
-                # 已在显示 CC：会话集合变了，仅刷新文字；保留响铃计数（不从头重响）
-                self.pet.show_alert(self._cc_alert_text(), kind="cc")
-            # _alert_kind == "reminder"：定点提醒占用，待其关闭后 _present_next_due 回落
-        else:
-            # 已解决：只有当前显示的就是 CC 卡才自动收起
-            if self._alert_kind == "cc":
-                self.pet.hide_alert()
-                self._alert_kind = None
-                self._cc_ring_count = 0
-
-    def _cc_alert_text(self) -> str:
-        names = self._cc_names
-        if len(names) <= 1:
-            only = names[0] if names else "Claude Code"
-            return f"🤖 {only} 在等你确认"
-        return f"🤖 {len(names)} 个会话在等你确认：" + "、".join(names)
-
-    def _show_cc(self) -> None:
-        self._alert_kind = "cc"
-        self._cc_ring_count = 1
-        self.pet.show_alert(self._cc_alert_text(), kind="cc")
         if self.config.sound_enabled:
             self.notifier.play_sound(self.config.sound_file)
